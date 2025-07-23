@@ -8,6 +8,9 @@ import '../models/song.dart';
 /// Service to manage audio playback using media_kit.
 class AudioPlayerService {
   late Player _player;
+  List<Song> _playlist = [];
+  int _currentIndex = -1;
+  bool _autoContinue = true;
 
   // Streams to expose player state
   final _currentSongController = StreamController<Song?>.broadcast();
@@ -17,10 +20,14 @@ class AudioPlayerService {
   Stream<bool> get isPlayingStream => _isPlayingController.stream;
 
   final _currentPositionController = StreamController<Duration>.broadcast();
-  Stream<Duration> get currentPositionStream => _currentPositionController.stream;
+  Stream<Duration> get currentPositionStream =>
+      _currentPositionController.stream;
 
   final _totalDurationController = StreamController<Duration>.broadcast();
   Stream<Duration> get totalDurationStream => _totalDurationController.stream;
+
+  final _playlistController = StreamController<List<Song>>.broadcast();
+  Stream<List<Song>> get playlistStream => _playlistController.stream;
 
   Song? _currentSong;
   bool _isPlaying = false;
@@ -60,9 +67,65 @@ class AudioPlayerService {
     _player.stream.completed.listen((completed) {
       if (completed) {
         print('Playback completed for $_currentSong');
-        // TODO: Implement logic for next song in playlist, etc.
+        _handleSongCompletion();
       }
     });
+  }
+
+  /// Handle song completion - auto-continue to next song
+  void _handleSongCompletion() {
+    if (_autoContinue && _playlist.isNotEmpty && _currentIndex >= 0) {
+      final nextIndex = (_currentIndex + 1) % _playlist.length;
+      final nextSong = _playlist[nextIndex];
+      print('Auto-continuing to next song: ${nextSong.title}');
+      play(nextSong);
+    }
+  }
+
+  /// Set playlist for auto-continue functionality
+  void setPlaylist(List<Song> playlist, {int startIndex = 0}) {
+    _playlist = playlist;
+    _currentIndex = startIndex;
+    _playlistController.add(_playlist);
+
+    if (playlist.isNotEmpty && startIndex < playlist.length) {
+      play(playlist[startIndex]);
+    }
+  }
+
+  /// Get current playlist
+  List<Song> get playlist => _playlist;
+
+  /// Get current index in playlist
+  int get currentIndex => _currentIndex;
+
+  /// Set auto-continue mode
+  void setAutoContinue(bool enabled) {
+    _autoContinue = enabled;
+  }
+
+  /// Get auto-continue mode
+  bool get autoContinue => _autoContinue;
+
+  /// Play next song in playlist
+  Future<void> playNext() async {
+    if (_playlist.isNotEmpty && _currentIndex >= 0) {
+      final nextIndex = (_currentIndex + 1) % _playlist.length;
+      _currentIndex = nextIndex;
+      final nextSong = _playlist[nextIndex];
+      await play(nextSong);
+    }
+  }
+
+  /// Play previous song in playlist
+  Future<void> playPrevious() async {
+    if (_playlist.isNotEmpty && _currentIndex >= 0) {
+      final prevIndex =
+          _currentIndex > 0 ? _currentIndex - 1 : _playlist.length - 1;
+      _currentIndex = prevIndex;
+      final prevSong = _playlist[prevIndex];
+      await play(prevSong);
+    }
   }
 
   /// Plays a given song from its local file path.
@@ -70,7 +133,16 @@ class AudioPlayerService {
     try {
       _currentSong = song;
       _currentSongController.add(song);
-      _totalDurationController.add(song.duration); // Set total duration immediately
+      _totalDurationController
+          .add(song.duration); // Set total duration immediately
+
+      // Update current index if song is in playlist
+      if (_playlist.isNotEmpty) {
+        final index = _playlist.indexWhere((s) => s.id == song.id);
+        if (index >= 0) {
+          _currentIndex = index;
+        }
+      }
 
       await _player.open(Media(song.data));
       await _player.play();
@@ -114,5 +186,6 @@ class AudioPlayerService {
     await _isPlayingController.close();
     await _currentPositionController.close();
     await _totalDurationController.close();
+    await _playlistController.close();
   }
 }

@@ -52,23 +52,31 @@ class LibraryScreen extends StatelessWidget {
                 );
               }
               if (notifier.songs.isEmpty) {
-                return const Center(child: Text('No music found on your device.'));
+                return const Center(
+                    child: Text('No music found on your device.'));
               }
               return ListView.builder(
-                padding: EdgeInsets.only(bottom: audioPlayerNotifier.currentSong != null ? 80.0 : 0), // Adjust padding if mini-player is visible
+                padding: EdgeInsets.only(
+                    bottom: audioPlayerNotifier.currentSong != null
+                        ? 80.0
+                        : 0), // Adjust padding if mini-player is visible
                 itemCount: notifier.songs.length,
                 itemBuilder: (context, index) {
                   final song = notifier.songs[index];
                   return ListTile(
                     leading: song.albumArt != null
-                        ? CircleAvatar(backgroundImage: MemoryImage(song.albumArt!))
+                        ? CircleAvatar(
+                            backgroundImage: MemoryImage(song.albumArt!))
                         : const CircleAvatar(child: Icon(Icons.music_note)),
                     title: Text(song.title),
                     subtitle: Text('${song.artist} - ${song.album}'),
                     onTap: () {
-                      audioPlayerNotifier.playSong(song);
+                      // Set the playlist for auto-continue functionality
+                      audioPlayerNotifier.setPlaylist(notifier.songs,
+                          startIndex: index);
                       Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => const PlayerScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => const PlayerScreen()),
                       );
                     },
                   );
@@ -95,12 +103,14 @@ class LibraryScreen extends StatelessWidget {
                     },
                     onTap: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => const PlayerScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => const PlayerScreen()),
                       );
                     },
                   );
                 }
-                return const SizedBox.shrink(); // Hide mini-player if no song is playing
+                return const SizedBox
+                    .shrink(); // Hide mini-player if no song is playing
               },
             ),
           ),

@@ -50,6 +50,7 @@ class LyricsNotifier extends ChangeNotifier {
         song.artist,
         song.album,
         song.duration,
+        song.data, // Pass the file path for embedded lyrics extraction
       );
 
       if (rawLrc != null) {

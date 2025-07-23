@@ -50,7 +50,7 @@ class _SplashScreenState extends State<SplashScreen> {
             Icon(Icons.music_note, size: 100, color: Theme.of(context).colorScheme.primary),
             const SizedBox(height: 20),
             Text(
-              'Music Player',
+              'URS Player',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -59,7 +59,7 @@ class _SplashScreenState extends State<SplashScreen> {
             const CircularProgressIndicator(),
             const SizedBox(height: 10),
             Text(
-              'Loading your music...',
+              'Loading UR music...',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
