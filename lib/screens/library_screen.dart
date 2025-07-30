@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:my_player/models/lyricLine.dart';
 import 'package:provider/provider.dart';
 import '../notifiers/audio_player_notifier.dart';
 import '../notifiers/music_library_notifier.dart';
@@ -13,6 +15,8 @@ class LibraryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final musicLibraryNotifier = Provider.of<MusicLibraryNotifier>(context);
     final audioPlayerNotifier = Provider.of<AudioPlayerNotifier>(context);
+    final AudioPlayer myPlayerInstance = AudioPlayer();
+    final List<LyricLine> myParsedLYRICS = [LyricLine('', Duration.zero)];
 
     return Scaffold(
       appBar: AppBar(
@@ -47,7 +51,7 @@ class LibraryScreen extends StatelessWidget {
                         onPressed: () => notifier.loadSongs(),
                         child: const Text('Retry'),
                       ),
-                    ],
+                    ], 
                   ),
                 );
               }
@@ -67,7 +71,9 @@ class LibraryScreen extends StatelessWidget {
                     leading: song.albumArt != null
                         ? CircleAvatar(
                             backgroundImage: MemoryImage(song.albumArt!))
-                        : const CircleAvatar(child: Icon(Icons.music_note)),
+                        : CircleAvatar(
+                            backgroundImage: const AssetImage('assets/default_album_art.png'),
+                          ),
                     title: Text(song.title),
                     subtitle: Text('${song.artist} - ${song.album}'),
                     onTap: () {
@@ -76,7 +82,10 @@ class LibraryScreen extends StatelessWidget {
                           startIndex: index);
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                            builder: (context) => const PlayerScreen()),
+                            builder: (context) => PlayerScreen(
+                                  audioPlayer: myPlayerInstance,
+                                  lyrics: myParsedLYRICS,
+                                )),
                       );
                     },
                   );
@@ -104,7 +113,7 @@ class LibraryScreen extends StatelessWidget {
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                            builder: (context) => const PlayerScreen()),
+                            builder: (context) => PlayerScreen(audioPlayer: myPlayerInstance,lyrics: myParsedLYRICS,)),
                       );
                     },
                   );
