@@ -1,13 +1,21 @@
-import 'package:flutter/material.dart';
 import 'dart:ui';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:my_player/models/lyricLine.dart';
 import 'package:provider/provider.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../notifiers/audio_player_notifier.dart';
 import '../notifiers/lyrics_notifier.dart';
 import '../notifiers/music_library_notifier.dart';
 
 class PlayerScreen extends StatefulWidget {
-  const PlayerScreen({super.key});
+  final AudioPlayer audioPlayer;
+  final List<LyricLine> lyrics;
+  const PlayerScreen(
+      {super.key, required this.audioPlayer, required this.lyrics});
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -24,10 +32,15 @@ class _PlayerScreenState extends State<PlayerScreen>
   late AnimationController _fadeController;
   late Animation<double> _albumArtAnimation;
   late Animation<double> _fadeAnimation;
+  bool _isFetchingLyrics = false;
+
+  final ItemScrollController _itemScrollController = ItemScrollController();
+  final ItemPositionsListener _itemPositionsListener =
+      ItemPositionsListener.create();
+  int _currentLyricIndex = 0; // The index of the currently active lyric line
 
   // Track current song to avoid duplicate lyrics fetching
   String? _currentSongId;
-  int _currentSongIndex = -1;
 
   @override
   void initState() {
@@ -67,7 +80,19 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Use addPostFrameCallback to avoid setState during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndFetchLyrics();
-      _updateCurrentSongIndex();
+      _updateCurrentSongIndex(widget.audioPlayer.position);
+    });
+    widget.audioPlayer.positionStream.listen((position) {
+      _updateCurrentSongIndex(position);
+      // Always center the current lyric line, even if index doesn't change
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _itemScrollController.scrollTo(
+          index: _currentLyricIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.5,
+        );
+      });
     });
   }
 
@@ -89,32 +114,58 @@ class _PlayerScreenState extends State<PlayerScreen>
   void _onAudioPlayerChanged() {
     // Check if song changed
     final currentSong = _audioPlayerNotifier.currentSong;
-    if (currentSong != null && currentSong.id != _currentSongId) {
-      print("Song changed from $_currentSongId to ${currentSong.id}");
-      _currentSongId = currentSong.id;
+    if (currentSong?.id != _currentSongId) {
+      setState(() => _currentLyricIndex = 0); // Reset index
+      _itemScrollController.jumpTo(index: 0);
       _checkAndFetchLyrics();
-      _updateCurrentSongIndex();
-    }
+      _updateCurrentSongIndex(widget.audioPlayer.position);
+      _albumArtController.stop();
+      _fadeController.reset();
+      _albumArtController.forward();
+      _fadeController.forward();
+    } // Scroll to top when song change
   }
 
-  void _checkAndFetchLyrics() {
+  void _checkAndFetchLyrics() async {
+    if (_isFetchingLyrics) return;
+    _isFetchingLyrics = true;
     final currentSong = _audioPlayerNotifier.currentSong;
     if (currentSong != null) {
-      print(
-        "Fetching lyrics for: ${currentSong.title} by ${currentSong.artist}",
-      );
-      _lyricsNotifier.fetchAndParseLyrics(currentSong);
+      await _lyricsNotifier.fetchAndParseLyrics(currentSong);
     } else {
-      print("No current song, clearing lyrics");
       _lyricsNotifier.clearLyrics();
     }
+    _isFetchingLyrics = false;
   }
 
-  void _updateCurrentSongIndex() {
-    final currentSong = _audioPlayerNotifier.currentSong;
-    if (currentSong != null) {
-      final songs = _musicLibraryNotifier.songs;
-      _currentSongIndex = songs.indexWhere((song) => song.id == currentSong.id);
+  void _updateCurrentSongIndex(Duration currentPosition) {
+    final lyrics = _lyricsNotifier.currentLyrics;
+    if (lyrics.isEmpty) return;
+    int newIndex = 0;
+    for (int i = 0; i < lyrics.length; i++) {
+      final line = lyrics[i];
+      final timestamp = line['time'] as Duration;
+      if (currentPosition >= timestamp) {
+        if (i + 1 < lyrics.length &&
+            currentPosition < (lyrics[i + 1]['time'] as Duration)) {
+          newIndex = i;
+          break;
+        } else if (i + 1 == lyrics.length) {
+          newIndex = i;
+          break;
+        }
+      }
+    }
+    if (newIndex != _currentLyricIndex) {
+      setState(() => _currentLyricIndex = newIndex);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _itemScrollController.scrollTo(
+          index: newIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.5,
+        );
+      });
     }
   }
 
@@ -136,14 +187,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// Seek to a specific lyric time
   void _seekToLyricTime(Duration time) {
     _audioPlayerNotifier.seek(time);
-  }
-
-  /// Format time for display
-  String _formatTime(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    return "$twoDigitMinutes:$twoDigitSeconds";
+    _updateCurrentSongIndex(time);
   }
 
   @override
@@ -269,10 +313,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   SizedBox(
                                     width: 40,
                                     height: 40,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 3,
-                                    ),
+                                    child: const SpinKitSpinningLines(
+                                        color: Colors.white, size: 40),
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
@@ -294,21 +336,20 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Container(
-                                    width: 80,
-                                    height: 80,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(40),
-                                    ),
-                                    child: Icon(
-                                      Icons.music_note,
-                                      size: 40,
-                                      color: Colors.white54,
-                                    ),
-                                  ),
+                                      width: 80,
+                                      height: 80,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(40),
+                                      ),
+                                      child: CircleAvatar(
+                                        foregroundImage: const AssetImage(
+                                          'assets/default_album_art.png',
+                                        ),
+                                      )),
                                   const SizedBox(height: 24),
                                   Text(
-                                    'No lyrics available',
+                                    'Gotta guess for this one',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 20,
@@ -329,7 +370,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                             );
                           }
 
-                          if (lyricsNotifier.currentLyrics.isEmpty) {
+                          final lyrics = lyricsNotifier.currentLyrics;
+                          if (lyrics.isEmpty) {
                             return Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -349,7 +391,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   ),
                                   const SizedBox(height: 24),
                                   Text(
-                                    'No lyrics available',
+                                    'Gotta guess for this one',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 20,
@@ -368,143 +410,76 @@ class _PlayerScreenState extends State<PlayerScreen>
                               ),
                             );
                           }
-                          
 
-                          // Find current lyric index
-                          int currentIndex = -1;
-                          for (int i = 0;
-                              i < lyricsNotifier.currentLyrics.length;
-                              i++) {
-                            final lyric = lyricsNotifier.currentLyrics[i];
-                            final lyricTime = lyric['time'] as Duration;
-                            if (audioNotifier.currentPosition >= lyricTime) {
-                              currentIndex = i;
-                            } else {
-                              break;
-                            }
-                          }
+                          // Responsive font size and padding
+                          final mediaQuery = MediaQuery.of(context);
+                          final screenWidth = mediaQuery.size.width;
+                          final fontSize = screenWidth < 400
+                              ? 14.0
+                              : (screenWidth < 600 ? 18.0 : 22.0);
+                          final currentFontSize = fontSize + 4;
+                          final linePadding = screenWidth < 400
+                              ? 4.0
+                              : (screenWidth < 600 ? 8.0 : 12.0);
 
                           return Container(
                             padding:
-                                const EdgeInsets.symmetric(horizontal: 24.0),
-                            child: Column(
-                              children: [
-                                // Current line (prominent and centered)
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 400),
-                                  curve: Curves.easeInOut,
-                                  margin:
-                                      const EdgeInsets.symmetric(vertical: 10),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 10,
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      Text(
-                                        currentIndex >= 0 &&
-                                                currentIndex <
-                                                    lyricsNotifier
-                                                        .currentLyrics.length
-                                            ? lyricsNotifier
-                                                    .currentLyrics[currentIndex]
-                                                ['text'] as String
-                                            : '',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 24,
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600,
-                                          height: 1.4,
-                                          letterSpacing: -0.2,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                    ],
-                                  ),
-                                ),
-                                // Next line (if exists)
-                                if (currentIndex >= 0 &&
-                                    currentIndex + 1 <
-                                        lyricsNotifier.currentLyrics.length)
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 400),
-                                    curve: Curves.easeInOut,
-                                    margin:
-                                        const EdgeInsets.symmetric(vertical: 8),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.05),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
+                                EdgeInsets.symmetric(horizontal: linePadding),
+                            child: ScrollablePositionedList.builder(
+                              itemScrollController: _itemScrollController,
+                              itemPositionsListener: _itemPositionsListener,
+                              itemCount: lyrics.length,
+                              itemBuilder: (context, index) {
+                                final lyric = lyrics[index];
+                                final isCurrent = index == _currentLyricIndex;
+                                return GestureDetector(
+                                  onTap: () {
+                                    final lyricTime = lyric['time'] as Duration;
+                                    _seekToLyricTime(lyricTime);
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                      _itemScrollController.scrollTo(
+                                        index: index,
+                                        duration:
+                                            const Duration(milliseconds: 300),
+                                        curve: Curves.easeInOut,
+                                        alignment: 0.5,
+                                      );
+                                    });
+                                  },
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(
+                                        vertical: linePadding / 2),
                                     child: Text(
-                                      lyricsNotifier
-                                              .currentLyrics[currentIndex + 1]
-                                          ['text'] as String,
+                                      lyric['text'] as String,
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.white.withOpacity(0.7),
-                                        fontWeight: FontWeight.w400,
+                                        fontSize: isCurrent
+                                            ? currentFontSize
+                                            : fontSize,
+                                        color: isCurrent
+                                            ? Colors.white
+                                            : Colors.white.withOpacity(0.7),
+                                        fontWeight: isCurrent
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
                                         height: 1.3,
+                                        letterSpacing: isCurrent ? -0.2 : 0.0,
+                                        shadows: isCurrent
+                                            ? [
+                                                Shadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.4),
+                                                  blurRadius: 8,
+                                                  offset: Offset(0, 2),
+                                                ),
+                                              ]
+                                            : [],
                                       ),
                                     ),
                                   ),
-
-                                // Additional context lines (up to 2 more previous and next)
-                                if (currentIndex > 1)
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                    margin:
-                                        const EdgeInsets.symmetric(vertical: 4),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 8,
-                                    ),
-                                    child: Text(
-                                      lyricsNotifier
-                                              .currentLyrics[currentIndex - 2]
-                                          ['text'] as String,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.white.withOpacity(0.7),
-                                        fontWeight: FontWeight.w400,
-                                        height: 1.2,
-                                      ),
-                                    ),
-                                  ),
-
-                                if (currentIndex >= 0 &&
-                                    currentIndex + 2 <
-                                        lyricsNotifier.currentLyrics.length)
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                    margin:
-                                        const EdgeInsets.symmetric(vertical: 4),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 8,
-                                    ),
-                                    child: Text(
-                                      lyricsNotifier
-                                              .currentLyrics[currentIndex + 2]
-                                          ['text'] as String,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.white.withOpacity(0.2),
-                                        fontWeight: FontWeight.w400,
-                                        height: 1.2,
-                                      ),
-                                    ),
-                                  ),
-                              ],
+                                );
+                              },
                             ),
                           );
                         },

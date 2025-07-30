@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:provider/provider.dart';
 import '../notifiers/music_library_notifier.dart';
 import 'library_screen.dart';
@@ -47,7 +48,11 @@ class _SplashScreenState extends State<SplashScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Placeholder for your app logo
-            Icon(Icons.music_note, size: 100, color: Theme.of(context).colorScheme.primary),
+            CircleAvatar(
+              foregroundImage: const AssetImage('assets/default_album_art.png'),
+              radius: 50,
+
+            ),
             const SizedBox(height: 20),
             Text(
               'URS Player',
@@ -56,7 +61,10 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 30),
-            const CircularProgressIndicator(),
+            const SpinKitSpinningLines(
+              color: Colors.blue,
+              size: 50,
+            ),
             const SizedBox(height: 10),
             Text(
               'Loading UR music...',

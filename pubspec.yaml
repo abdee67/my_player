@@ -22,10 +22,11 @@ dependencies:
   provider: ^6.1.5
   connectivity_plus: ^6.1.4
   lrc: ^1.0.2
+  flutter_spinkit: ^5.2.1
 
   cupertino_icons: ^1.0.8
-  just_audio_media_kit: ^2.1.0
-
+  just_audio: ^0.10.4
+  scrollable_positioned_list: ^0.3.8
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -35,5 +36,5 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/default_album_art.jpeg
+    - assets/default_album_art.png
     - assets/Technician Report.pdf
