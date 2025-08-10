@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/song.dart';
+import 'album_art_widget.dart';
 
 class MiniMediaWidget extends StatelessWidget {
   final Song song;
@@ -38,15 +39,11 @@ class MiniMediaWidget extends StatelessWidget {
           ),
           child: Row(
             children: [
-              song.albumArt != null
-                  ? CircleAvatar(
-                      backgroundImage: MemoryImage(song.albumArt!),
-                      radius: 22,
-                    )
-                  : const CircleAvatar(
-                      backgroundImage: AssetImage('assets/default_album_art.png'),
-                      radius: 22,
-                    ),
+              AlbumArtWidget(
+                songId: int.tryParse(song.id) ?? 0,
+                albumArt: song.albumArt,
+                radius: 22,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

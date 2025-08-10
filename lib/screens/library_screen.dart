@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:my_player/models/lyricLine.dart';
 import 'package:provider/provider.dart';
 import '../notifiers/audio_player_notifier.dart';
 import '../notifiers/music_library_notifier.dart';
 import '../widgets/mini_media_widget.dart';
+import '../widgets/album_art_widget.dart';
 import 'player_screen.dart';
 import 'settings_screen.dart';
 import 'dart:ui';
@@ -21,7 +23,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String _search = '';
   SortType _sortType = SortType.title;
   final AudioPlayer myPlayerInstance = AudioPlayer();
-  final List<LyricLine> myParsedLYRICS = [LyricLine('', Duration.zero)];
 
   @override
   Widget build(BuildContext context) {
@@ -69,15 +70,33 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   // Shimmer/skeleton loader
                   return ListView.builder(
                     padding: const EdgeInsets.only(top: 16),
-                    itemCount: 8,
+                    itemCount: notifier.songs.length + 1,
                     itemBuilder: (context, i) => Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      child: Container(
-                        height: 70,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.07),
-                          borderRadius: BorderRadius.circular(18),
+                          horizontal: 2, vertical: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          radius: 28,
+                          backgroundColor: Colors.grey.shade800,
+                          child: SizedBox(
+                            width: 56,
+                            height: 56,
+                            child: Center(
+                              child: SpinKitSpinningLines(
+                                color: Colors.deepPurpleAccent,
+                                size: 30,
+                              ),
+                            ),
+                          ),
+                        ),
+                        title: Container(
+                          height: 16,
+                          color: Colors.white.withOpacity(0.1),
+                        ),
+                        subtitle: Container(
+                          height: 12,
+                          width:9,
+                          color: Colors.white.withOpacity(0.1),
                         ),
                       ),
                     ),
@@ -139,7 +158,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   itemCount: songs.length,
                   itemBuilder: (context, index) {
                     final song = songs[index];
-                    
+
                     return Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 8),
@@ -201,40 +220,57 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                     )
                                   ],
                                 ),
-                                
                                 child: ListTile(
-                                  
                                     leading: Hero(
                                       tag: 'albumArt_${song.id}',
-                                      child: song.albumArt != null
-                                          ? CircleAvatar(
-                                              backgroundImage:
-                                                  MemoryImage(song.albumArt!),
-                                              radius: 28,
-                                            )
-                                          : CircleAvatar(
-                                              backgroundImage: const AssetImage(
-                                                  'assets/default_album_art.png'),
-                                              radius: 28,
-                                            ),
+                                      child: AlbumArtWidget(
+                                        songId: int.tryParse(song.id) ?? 0,
+                                        albumArt: notifier.songs[index].albumArt,
+                                        radius: 28,
+                                      ),
                                     ),
                                     title: Text(song.title,
                                         style: const TextStyle(
                                             color: Colors.white,
-                                            fontWeight: FontWeight.w600)),
+                                            fontWeight: FontWeight.w700)),
                                     subtitle: Text(
-                                        '${song.artist} • ${song.album}',
+                                        '${song.artist} \n${song.album}',
                                         style: const TextStyle(
-                                            color: Colors.white70)),
-                                    trailing: Icon(Icons.chevron_right,
-                                        color: Colors.white.withOpacity(0.7)),
+                                            color: Colors.white)),
+                                    hoverColor: (Color.alphaBlend(
+                                        Colors.deepPurpleAccent.withOpacity(0.2),
+                                        Colors.transparent)),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (audioPlayerNotifier.currentSong?.id == song.id && audioPlayerNotifier.isPlaying)
+                                          AnimatedContainer(
+                                            duration: const Duration(milliseconds: 1000),
+                                            transform: Matrix4.rotationZ(
+                                                audioPlayerNotifier.isPlaying ? 0.1 : 0),
+                                            width: 24,
+                                            height: 24,
+                                            child: Icon(
+                                              Icons.graphic_eq,
+                                              color: Colors.deepPurpleAccent,
+                                              size: 24,
+                                            ),
+                                          ),
+                                        
+                                      ],
+                                    ),
                                     onTap: () {
                                       audioPlayerNotifier.setPlaylist(
                                           notifier.songs,
                                           startIndex:
                                               notifier.songs.indexOf(song));
-                                    
-                                    }))));
+                                      audioPlayerNotifier.playSong(song);
+                                    },
+                                  ),
+                                ),
+                        )
+                              );
+
                   },
                 );
               },
@@ -243,7 +279,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         ),
 
         // Mini media widget above bottom nav
-       /**  Align(
+        /**  Align(
           alignment: Alignment.bottomCenter,
           child: Consumer<AudioPlayerNotifier>(
             builder: (context, notifier, child) {

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:my_player/models/lyricLine.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service to fetch lyrics from LRCLIB and parse them.
@@ -25,34 +26,16 @@ class LyricsService {
         print("Using cached lyrics for $title by $artist");
         return cachedLyrics;
       }
-
-      // Check for embedded lyrics in the audio file
-      if (filePath != null) {
-        final embeddedLyrics = await _extractEmbeddedLyrics(filePath);
-        if (embeddedLyrics != null && embeddedLyrics.isNotEmpty) {
-          print("Found embedded lyrics for $title by $artist");
-          await _cacheLyrics(title, artist, embeddedLyrics, isEmbedded: true);
-          return embeddedLyrics;
-        }
-      }
-
-      // Check if we previously found no embedded lyrics to avoid repeated attempts
-      final noEmbeddedKey = '${title}_${artist}_no_embedded';
-      final prefs = await SharedPreferences.getInstance();
-      final hasNoEmbedded = prefs.getBool(noEmbeddedKey) ?? false;
-
-      if (!hasNoEmbedded && filePath != null) {
-        // Try to extract embedded lyrics again
-        final embeddedLyrics = await _extractEmbeddedLyrics(filePath);
-        if (embeddedLyrics != null && embeddedLyrics.isNotEmpty) {
-          print("Found embedded lyrics for $title by $artist");
-          await _cacheLyrics(title, artist, embeddedLyrics, isEmbedded: true);
-          return embeddedLyrics;
-        } else {
-          // Mark that this song has no embedded lyrics
-          await prefs.setBool(noEmbeddedKey, true);
-        }
-      }
+if (filePath != null) {
+  final embeddedLyrics = await _extractEmbeddedLyrics(filePath);
+  if (embeddedLyrics != null) {
+    await _cacheLyrics(title, artist, embeddedLyrics, isEmbedded: true);
+    return embeddedLyrics;
+  }
+  // Mark as no embedded lyrics if first attempt fails
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('${title}_${artist}_no_embedded', true);
+}
 
       // If no embedded lyrics, fetch from online
       final queryParameters = {
@@ -276,70 +259,46 @@ class LyricsService {
 
   /// Parses a raw LRC string into a list of timed lyric lines.
   /// Returns an empty list if parsing fails.
-  Future<List<Map<String, dynamic>>> parseLrc(String lrcContent) async {
-    try {
-      List<Map<String, dynamic>> lyricsList = [];
+ Future<List<LyricLine>> parseLrc(String lrcContent) async {
+  try {
+    List<LyricLine> lyricsList = [];
+    
+    final lines = lrcContent.split('\n');
+    for (String line in lines) {
+      line = line.trim();
+      if (line.isEmpty) continue;
 
-      // Simple LRC parser
-      final lines = lrcContent.split('\n');
-      print("Parsing LRC content with ${lines.length} lines");
+      final timeRegex = RegExp(r'\[(\d+):(\d+)(?:\.(\d+))?\]');
+      final matches = timeRegex.allMatches(line);
 
-      for (String line in lines) {
-        line = line.trim();
-        if (line.isEmpty) continue;
+      if (matches.isNotEmpty) {
+        final lastMatch = matches.last;
+        final text = line.substring(line.lastIndexOf(']') + 1).trim();
 
-        // Look for time tags like [00:00.00]
-        final timeRegex = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2})\]');
-        final matches = timeRegex.allMatches(line);
+        if (text.isNotEmpty) {
+          final minutes = int.parse(lastMatch.group(1)!);
+          final seconds = int.parse(lastMatch.group(2)!);
+          final centiseconds = lastMatch.group(3) != null 
+              ? int.parse(lastMatch.group(3)!) 
+              : 0;
 
-        if (matches.isNotEmpty) {
-          // Extract the text after the last time tag
-          final lastMatch = matches.last;
-          final textStart = line.lastIndexOf(']') + 1;
-          final text = line.substring(textStart).trim();
-
-          if (text.isNotEmpty) {
-            // Parse time
-            final minutes = int.parse(lastMatch.group(1)!);
-            final seconds = int.parse(lastMatch.group(2)!);
-            final centiseconds = int.parse(lastMatch.group(3)!);
-            final time = Duration(
+          lyricsList.add(LyricLine(
+            text: text,
+            timestamp: Duration(
               minutes: minutes,
               seconds: seconds,
               milliseconds: centiseconds * 10,
-            );
-
-            lyricsList.add({'time': time, 'text': text});
-
-            // Debug: Print first few lyrics with their timing
-            if (lyricsList.length <= 5) {
-              print(
-                "Lyric ${lyricsList.length}: [${time.inMinutes}:${(time.inSeconds % 60).toString().padLeft(2, '0')}.${(time.inMilliseconds % 1000 / 10).round().toString().padLeft(2, '0')}] $text",
-              );
-            }
-          }
+            ),
+          ));
         }
       }
-
-      // Sort by time
-      lyricsList.sort(
-        (a, b) => (a['time'] as Duration).compareTo(b['time'] as Duration),
-      );
-
-      print("Successfully parsed ${lyricsList.length} lyric lines");
-      if (lyricsList.isNotEmpty) {
-        print(
-          "First lyric: ${lyricsList.first['time']} - ${lyricsList.first['text']}",
-        );
-        print(
-          "Last lyric: ${lyricsList.last['time']} - ${lyricsList.last['text']}",
-        );
-      }
-
-      return lyricsList;
-    } catch (e) {
-      print("Error parsing LRC: $e");
-      return [];
     }
+
+    lyricsList.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return lyricsList;
+  } catch (e) {
+    print("Error parsing LRC: $e");
+    return [];
   }
+}
 }

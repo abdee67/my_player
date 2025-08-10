@@ -8,6 +8,7 @@ import '../models/song.dart';
 /// Service to manage audio playback using media_kit.
 class AudioPlayerService {
   late Player _player;
+  Player get player => _player;
   List<Song> _playlist = [];
   int _currentIndex = -1;
   bool _autoContinue = true;

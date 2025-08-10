@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
+// Removed unused import: just_audio
+import 'package:provider/provider.dart';
 import 'package:my_player/screens/library_screen.dart';
 import 'package:my_player/screens/player_screen.dart';
-import '../screens/music_list_screen.dart';
-import '../screens/now_playing_screen.dart';
+import 'package:my_player/notifiers/audio_player_notifier.dart';
 import '../screens/internal_storage_screen.dart';
 import '../screens/albums_screen.dart';
 import '../screens/search_screen.dart';
@@ -18,26 +18,36 @@ class BottomNav extends StatefulWidget {
 
 class _BottomNavState extends State<BottomNav> {
   int _selectedIndex = 0;
-  final List<Widget> _screens = [
-    const LibraryScreen(),
-    PlayerScreen(audioPlayer: AudioPlayer(), lyrics: const []),
-    const InternalStorageScreen(),
-    const AlbumsScreen(),
-    const SearchScreen(),
-    const SettingsScreen(),
-  ];
 
   @override
   Widget build(BuildContext context) {
+    // Get the shared AudioPlayer instance from the AudioPlayerNotifier
+  final player = Provider.of<AudioPlayerNotifier>(context, listen: false).player;
+    final List<Widget> screens = [
+      const LibraryScreen(),
+      PlayerScreen(audioPlayer: player, lyrics: const []),
+      const InternalStorageScreen(),
+      const AlbumsScreen(),
+      const SearchScreen(),
+      const SettingsScreen(),
+    ];
+
     return Scaffold(
-      body: _screens[_selectedIndex],
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: screens,
+      ),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.black,
         selectedItemColor: Colors.deepPurpleAccent,
         unselectedItemColor: Colors.white54,
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
+        onTap: (int index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.library_music), label: 'Music'),
           BottomNavigationBarItem(icon: Icon(Icons.play_circle), label: 'Now Playing'),

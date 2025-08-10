@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/song.dart';
+import 'package:media_kit/media_kit.dart';
 import '../services/audio_player_service.dart';
 
 /// Notifier for managing and exposing audio player state to the UI.
 class AudioPlayerNotifier extends ChangeNotifier {
   final AudioPlayerService _audioPlayerService;
+  Player get player => _audioPlayerService.player;
 
   Song? _currentSong;
   bool _isPlaying = false;
