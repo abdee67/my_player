@@ -2,6 +2,29 @@ import 'dart:typed_data';
 
 /// Represents a local music track.
 class Song {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'artist': artist,
+      'album': album,
+      'data': data,
+      'duration': duration.inMilliseconds,
+      // albumArt is not cached for performance/storage reasons
+    };
+  }
+
+  factory Song.fromJson(Map<String, dynamic> json) {
+    return Song(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      artist: json['artist'] as String,
+      album: json['album'] as String,
+      data: json['data'] as String,
+      duration: Duration(milliseconds: json['duration'] as int),
+      albumArt: null, // Not cached
+    );
+  }
   final String id;
   final String title;
   final String artist;

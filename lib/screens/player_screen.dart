@@ -116,7 +116,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final currentSong = _audioPlayerNotifier.currentSong;
     if (currentSong?.id != _currentSongId) {
       setState(() => _currentLyricIndex = 0); // Reset index
-      _itemScrollController.jumpTo(index: 0);
+  //    _itemScrollController.jumpTo(index: 0);
       _checkAndFetchLyrics();
       _updateCurrentSongIndex(widget.audioPlayer.position);
       _albumArtController.stop();
@@ -259,14 +259,6 @@ class _PlayerScreenState extends State<PlayerScreen>
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back_ios,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                              onPressed: () => Navigator.of(context).pop(),
                             ),
                           ),
                           const SizedBox(width: 16),
