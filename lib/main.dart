@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart'; // Import media_kit
 import 'package:provider/provider.dart';
 
@@ -14,6 +15,10 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // Initialize media_kit. This is crucial.
   MediaKit.ensureInitialized();
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   runApp(
     MultiProvider(
       providers: [
@@ -49,8 +54,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Music Player',
+    return SafeArea(
+      child: MaterialApp(
+      title: 'UR Player',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.light,
@@ -74,6 +80,8 @@ class MyApp extends StatelessWidget {
       ),
       themeMode: ThemeMode.dark, // Or ThemeMode.light, or ThemeMode.system
       home: const SplashScreen(),
+    
+    ),
     );
   }
 }

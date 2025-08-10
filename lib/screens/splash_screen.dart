@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:my_player/widgets/bottom_nav.dart';
 import 'package:provider/provider.dart';
 import '../notifiers/music_library_notifier.dart';
 import 'library_screen.dart';
@@ -35,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
         // You might want to provide an option to retry or go to settings here
       }
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LibraryScreen()),
+        MaterialPageRoute(builder: (context) => const BottomNav()),
       );
     }
   }
@@ -67,7 +68,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              'Loading UR music...',
+              'Loading UR Cool music...',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],

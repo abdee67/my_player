@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:my_player/models/lyricLine.dart';
 // Correct import for the package
 import '../models/song.dart';
 import '../services/lyrics_service.dart';
@@ -7,14 +8,14 @@ import '../services/lyrics_service.dart';
 class LyricsNotifier extends ChangeNotifier {
   final LyricsService _lyricsService;
 
-  List<Map<String, dynamic>> _currentLyrics = [];
+  List<LyricLine> _currentLyrics = [];
   bool _isLoadingLyrics = false;
   String? _lyricsErrorMessage;
   String? _currentSongId; // Track current song to prevent duplicate fetching
 
   LyricsNotifier(this._lyricsService);
 
-  List<Map<String, dynamic>> get currentLyrics => _currentLyrics;
+  List<LyricLine> get currentLyrics => _currentLyrics;
   bool get isLoadingLyrics => _isLoadingLyrics;
   String? get lyricsErrorMessage => _lyricsErrorMessage;
 
