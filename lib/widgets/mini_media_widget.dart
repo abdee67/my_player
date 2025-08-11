@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
 import '../models/song.dart';
 import 'album_art_widget.dart';
 
@@ -74,7 +73,9 @@ class MiniMediaWidget extends StatelessWidget {
               ),
               IconButton(
                 icon: Icon(
-                  isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
+                  isPlaying
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_fill,
                   color: Colors.deepPurpleAccent,
                   size: 32,
                 ),

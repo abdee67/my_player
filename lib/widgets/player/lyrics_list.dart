@@ -21,38 +21,45 @@ class LyricsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ScrollablePositionedList.builder(
-      physics: const BouncingScrollPhysics(),
-      key: const Key('lyricsList'),
       itemScrollController: itemScrollController,
       itemPositionsListener: itemPositionsListener,
       itemCount: lyrics.length,
+      padding: const EdgeInsets.symmetric(
+          vertical: 24), // Reduced padding for better centering
       itemBuilder: (context, index) {
-        final lyric = lyrics[index];
-        final isActive = index == currentIndex;
-        return GestureDetector(
-          key: Key('lyricLine_$index'),
-          onTap: () => onTapLine(index),
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 200),
-            style: TextStyle(
-              color: index == currentIndex ? Colors.deepPurpleAccent : Colors.white70,
-              fontWeight: index == currentIndex ? FontWeight.bold : FontWeight.normal,
-              fontSize: index == currentIndex ? 20 : 16,
-              shadows: index == currentIndex
-                  ? [Shadow(color: Colors.deepPurpleAccent.withOpacity(0.3), blurRadius: 8)]
-                  : [],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 16),
-              child: Text(lyric.text, textAlign: TextAlign.center,
+        final isCurrent = index == currentIndex;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          margin: EdgeInsets.symmetric(
+              vertical: isCurrent ? 12 : 0, horizontal: isCurrent ? 24 : 0),
+          decoration: BoxDecoration(
+            color: isCurrent
+                ? Colors.deepPurple.withOpacity(0.2)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+            child: Text(
+              lyrics[index].text,
+              textAlign: TextAlign.center,
               style: TextStyle(
-                color: isActive ? Colors.deepPurpleAccent : Colors.white70,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                fontSize: isActive ? 20 : 16,
+                fontSize: isCurrent ? 22 : 18,
+                color: isCurrent ? Colors.deepPurple : Colors.white70,
+                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                shadows: isCurrent
+                    ? [
+                        Shadow(
+                          offset: Offset(0, 0),
+                          blurRadius: 3,
+                          color: Colors.deepPurpleAccent.withOpacity(0.7),
+                        ),
+                      ]
+                    : null,
               ),
             ),
           ),
-          )
         );
       },
     );

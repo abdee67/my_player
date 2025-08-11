@@ -3,7 +3,6 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:my_player/widgets/bottom_nav.dart';
 import 'package:provider/provider.dart';
 import '../notifiers/music_library_notifier.dart';
-import 'library_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,12 +19,14 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _initializeApp() async {
-    final musicLibraryNotifier = Provider.of<MusicLibraryNotifier>(context, listen: false);
+    final musicLibraryNotifier =
+        Provider.of<MusicLibraryNotifier>(context, listen: false);
 
     // Give a short delay for splash screen visibility (optional)
     await Future.delayed(const Duration(seconds: 1));
 
-    await musicLibraryNotifier.loadSongs(); // This also handles permission requests
+    await musicLibraryNotifier
+        .loadSongs(); // This also handles permission requests
 
     if (mounted) {
       if (musicLibraryNotifier.errorMessage != null) {
@@ -52,14 +53,13 @@ class _SplashScreenState extends State<SplashScreen> {
             CircleAvatar(
               foregroundImage: const AssetImage('assets/default_album_art.png'),
               radius: 50,
-
             ),
             const SizedBox(height: 20),
             Text(
               'URS Player',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 30),
             const SpinKitSpinningLines(

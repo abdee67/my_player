@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:my_player/models/lyricLine.dart';
 import 'package:provider/provider.dart';
 import '../notifiers/audio_player_notifier.dart';
 import '../notifiers/music_library_notifier.dart';
-import '../widgets/mini_media_widget.dart';
 import '../widgets/album_art_widget.dart';
-import 'player_screen.dart';
-import 'settings_screen.dart';
 import 'dart:ui';
 import '../widgets/library_header.dart';
 
@@ -95,7 +91,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         ),
                         subtitle: Container(
                           height: 12,
-                          width:9,
+                          width: 9,
                           color: Colors.white.withOpacity(0.1),
                         ),
                       ),
@@ -163,114 +159,112 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 8),
                         child: GestureDetector(
-                            onLongPress: () {
-                              showDialog(
-                                  context: context,
-                                  builder: (ctx) {
-                                    return AlertDialog(
-                                      backgroundColor: Colors.black87,
-                                      title: Text(song.title,
-                                          style: const TextStyle(
-                                              color: Colors.white)),
-                                      content: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text('Artist: ${song.artist}',
-                                              style: const TextStyle(
-                                                  color: Colors.white70)),
-                                          Text('Album: ${song.album}',
-                                              style: const TextStyle(
-                                                  color: Colors.white70)),
-                                          Text(
-                                              'Duration: ${song.duration.inMinutes}:${(song.duration.inSeconds % 60).toString().padLeft(2, '0')}',
-                                              style: const TextStyle(
-                                                  color: Colors.white70)),
-                                          const SizedBox(height: 12),
-                                          Text('File: ${song.data}',
-                                              style: const TextStyle(
-                                                  color: Colors.white38,
-                                                  fontSize: 12)),
-                                        ],
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(ctx).pop(),
-                                          child: const Text('Close',
-                                              style: TextStyle(
-                                                  color:
-                                                      Colors.deepPurpleAccent)),
-                                        )
-                                      ],
-                                    );
-                                  });
-                            },
-                            child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(18),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.15),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 4),
-                                    )
-                                  ],
-                                ),
-                                child: ListTile(
-                                    leading: Hero(
-                                      tag: 'albumArt_${song.id}',
-                                      child: AlbumArtWidget(
-                                        songId: int.tryParse(song.id) ?? 0,
-                                        albumArt: notifier.songs[index].albumArt,
-                                        radius: 28,
-                                      ),
-                                    ),
+                          onLongPress: () {
+                            showDialog(
+                                context: context,
+                                builder: (ctx) {
+                                  return AlertDialog(
+                                    backgroundColor: Colors.black87,
                                     title: Text(song.title,
                                         style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w700)),
-                                    subtitle: Text(
-                                        '${song.artist} \n${song.album}',
-                                        style: const TextStyle(
                                             color: Colors.white)),
-                                    hoverColor: (Color.alphaBlend(
-                                        Colors.deepPurpleAccent.withOpacity(0.2),
-                                        Colors.transparent)),
-                                    trailing: Row(
+                                    content: Column(
                                       mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        if (audioPlayerNotifier.currentSong?.id == song.id && audioPlayerNotifier.isPlaying)
-                                          AnimatedContainer(
-                                            duration: const Duration(milliseconds: 1000),
-                                            transform: Matrix4.rotationZ(
-                                                audioPlayerNotifier.isPlaying ? 0.1 : 0),
-                                            width: 24,
-                                            height: 24,
-                                            child: Icon(
-                                              Icons.graphic_eq,
-                                              color: Colors.deepPurpleAccent,
-                                              size: 24,
-                                            ),
-                                          ),
-                                        
+                                        Text('Artist: ${song.artist}',
+                                            style: const TextStyle(
+                                                color: Colors.white70)),
+                                        Text('Album: ${song.album}',
+                                            style: const TextStyle(
+                                                color: Colors.white70)),
+                                        Text(
+                                            'Duration: ${song.duration.inMinutes}:${(song.duration.inSeconds % 60).toString().padLeft(2, '0')}',
+                                            style: const TextStyle(
+                                                color: Colors.white70)),
+                                        const SizedBox(height: 12),
+                                        Text('File: ${song.data}',
+                                            style: const TextStyle(
+                                                color: Colors.white38,
+                                                fontSize: 12)),
                                       ],
                                     ),
-                                    onTap: () {
-                                      audioPlayerNotifier.setPlaylist(
-                                          notifier.songs,
-                                          startIndex:
-                                              notifier.songs.indexOf(song));
-                                      audioPlayerNotifier.playSong(song);
-                                    },
-                                  ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(ctx).pop(),
+                                        child: const Text('Close',
+                                            style: TextStyle(
+                                                color:
+                                                    Colors.deepPurpleAccent)),
+                                      )
+                                    ],
+                                  );
+                                });
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                )
+                              ],
+                            ),
+                            child: ListTile(
+                              leading: Hero(
+                                tag: 'albumArt_${song.id}',
+                                child: AlbumArtWidget(
+                                  songId: int.tryParse(song.id) ?? 0,
+                                  albumArt: notifier.songs[index].albumArt,
+                                  radius: 28,
                                 ),
-                        )
-                              );
-
+                              ),
+                              title: Text(song.title,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700)),
+                              subtitle: Text('${song.artist} \n${song.album}',
+                                  style: const TextStyle(color: Colors.white)),
+                              hoverColor: (Color.alphaBlend(
+                                  Colors.deepPurpleAccent.withOpacity(0.2),
+                                  Colors.transparent)),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (audioPlayerNotifier.currentSong?.id ==
+                                          song.id &&
+                                      audioPlayerNotifier.isPlaying)
+                                    AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 1000),
+                                      transform: Matrix4.rotationZ(
+                                          audioPlayerNotifier.isPlaying
+                                              ? 0.1
+                                              : 0),
+                                      width: 24,
+                                      height: 24,
+                                      child: Icon(
+                                        Icons.graphic_eq,
+                                        color: Colors.deepPurpleAccent,
+                                        size: 24,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              onTap: () {
+                                audioPlayerNotifier.setPlaylist(notifier.songs,
+                                    startIndex: notifier.songs.indexOf(song));
+                                audioPlayerNotifier.playSong(song);
+                              },
+                            ),
+                          ),
+                        ));
                   },
                 );
               },

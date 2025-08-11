@@ -4,7 +4,8 @@ class ModernAppBar extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback? onBack;
-  const ModernAppBar({super.key, required this.title, required this.subtitle, this.onBack});
+  const ModernAppBar(
+      {super.key, required this.title, required this.subtitle, this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +20,7 @@ class ModernAppBar extends StatelessWidget {
               onPressed: onBack,
             ),
           if (onBack == null)
-            Container(
+            SizedBox(
               width: 40,
               height: 40,
             ),

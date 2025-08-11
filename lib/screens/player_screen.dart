@@ -18,7 +18,8 @@ import '../notifiers/lyrics_notifier.dart';
 class PlayerScreen extends StatefulWidget {
   final Player audioPlayer;
   final List<LyricLine> lyrics;
-  const PlayerScreen({super.key, required this.audioPlayer, required this.lyrics});
+  const PlayerScreen(
+      {super.key, required this.audioPlayer, required this.lyrics});
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -53,7 +54,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       listen: false,
     );
     _lyricsNotifier = Provider.of<LyricsNotifier>(context, listen: false);
-  // Removed _musicLibraryNotifier initialization
+    // Removed _musicLibraryNotifier initialization
 
     // Initialize animation controllers
     _albumArtController = AnimationController(
@@ -65,7 +66,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       vsync: this,
     );
 
-  // Removed _albumArtAnimation initialization
+    // Removed _albumArtAnimation initialization
 
     // Start animations
     _albumArtController.forward();
@@ -74,23 +75,24 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Use addPostFrameCallback to avoid setState during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndFetchLyrics();
+      _itemScrollController.jumpTo(index: 0);
     });
-    // Listen to position updates from media_kit.Player
-    widget.audioPlayer.stream.position.listen((position) {
-      if (!_isManualSeeking){
-      _updateCurrentSongIndex(position);
+    // Listen to position updates from AudioPlayerNotifier for consistent timing
+    _audioPlayerNotifier.addListener(() {
+      if (!_isManualSeeking) {
+        _updateCurrentSongIndex(_audioPlayerNotifier.currentPosition);
       }
     });
-    
   }
+
   bool _isManualSeeking = false; // Track if user is manually seeking
 
   void _seekToLyricTime(Duration time) {
-  _isManualSeeking = true;
-  widget.audioPlayer.seek(time);
-  _updateCurrentSongIndex(time);
-  Future.delayed(Duration(milliseconds: 500), () => _isManualSeeking = false);
-}
+    _isManualSeeking = true;
+    widget.audioPlayer.seek(time);
+    _updateCurrentSongIndex(time);
+    Future.delayed(Duration(milliseconds: 500), () => _isManualSeeking = false);
+  }
 
   @override
   void didChangeDependencies() {
@@ -112,9 +114,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final currentSong = _audioPlayerNotifier.currentSong;
     if (currentSong?.id != _currentSongId) {
       setState(() => _currentLyricIndex = 0); // Reset index
-  //    _itemScrollController.jumpTo(index: 0);
       _checkAndFetchLyrics();
-  // Removed: _updateCurrentSongIndex(widget.audioPlayer.position); (no direct position getter in media_kit.Player)
       _albumArtController.stop();
       _fadeController.reset();
       _albumArtController.forward();
@@ -134,41 +134,50 @@ class _PlayerScreenState extends State<PlayerScreen>
     _isFetchingLyrics = false;
   }
 
-void _updateCurrentSongIndex(Duration currentPosition) {
-  final lyrics = _lyricsNotifier.currentLyrics;
-  if (lyrics.isEmpty) return;
+  void _updateCurrentSongIndex(Duration currentPosition) {
+    final lyrics = _lyricsNotifier.currentLyrics;
+    if (lyrics.isEmpty) return;
 
-  int newIndex = _findLyricIndex(currentPosition, lyrics);
-  
-  if (newIndex != _currentLyricIndex) {
-    setState(() => _currentLyricIndex = newIndex);
-    _smoothScrollToLyric(newIndex);
-  }
-}
+    int newIndex = _findLyricIndex(currentPosition, lyrics);
 
-int _findLyricIndex(Duration position, List<LyricLine> lyrics) {
-  for (int i = 0; i < lyrics.length; i++) {
-    final currentLine = lyrics[i];
-    final nextLine = i + 1 < lyrics.length ? lyrics[i + 1] : null;
-    
-    if (position >= currentLine.timestamp && 
-        (nextLine == null || position < nextLine.timestamp)) {
-      return i;
+    if (newIndex != _currentLyricIndex) {
+      setState(() => _currentLyricIndex = newIndex);
+      WidgetsBinding.instance.addPostFrameCallback((_) {});
+    } else {
+      _smoothScrollToLyric(newIndex);
     }
   }
-  return 0;
-}
 
-void _smoothScrollToLyric(int index) {
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    _itemScrollController.scrollTo(
-      index: index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      alignment: 0.5, // Center the active line
-    );
-  });
-}
+  int _findLyricIndex(Duration position, List<LyricLine> lyrics) {
+    if (lyrics.isEmpty) return 0;
+    // Add a small offset to account for audio processing delays and make sync more responsive
+    final adjustedPosition = position + const Duration(milliseconds: 150);
+
+    // Find the most appropriate lyric line for the current position
+
+    for (int i = 0; i < lyrics.length; i++) {
+      final line = lyrics[i];
+      final nextLine = i < lyrics.length - 1 ? lyrics[i + 1] : null;
+      if (adjustedPosition >= line.timestamp &&
+          (nextLine == null || adjustedPosition < nextLine.timestamp)) {
+        return i;
+      }
+    }
+    return lyrics.length - 1;
+  }
+
+  void _smoothScrollToLyric(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(Duration(milliseconds: 200), () {
+        _itemScrollController.scrollTo(
+          index: index,
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeInOut,
+          alignment: 0.5, // Center the active line
+        );
+      });
+    });
+  }
 
   void _playNextSong() {
     _audioPlayerNotifier.playNext();
@@ -180,12 +189,11 @@ void _smoothScrollToLyric(int index) {
 
   // Removed unused _formatDuration
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Consumer2<AudioPlayerNotifier,LyricsNotifier>(
+      body: Consumer2<AudioPlayerNotifier, LyricsNotifier>(
         builder: (context, audioNotifier, lyricsNotifier, _) {
           return Stack(
             children: [
@@ -241,17 +249,18 @@ void _smoothScrollToLyric(int index) {
                     ModernAppBar(
                       key: const Key('modernAppBar'),
                       title: audioNotifier.currentSong?.artist ?? 'No Artist',
-                      subtitle: audioNotifier.currentSong?.title ?? 'No Song Playing',
+                      subtitle:
+                          audioNotifier.currentSong?.title ?? 'No Song Playing',
                       onBack: () => Navigator.of(context).maybePop(),
                     ),
-                    // Album Art
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12.0),
-                     
-                    ),
-                    // Lyrics List
                     Expanded(
-                      child: _buildLyricsSection(lyricsNotifier),
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 20),
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.7,
+                        ),
+                        child: _buildLyricsSection(_lyricsNotifier),
+                      ),
                     ),
                     // Player Controls
                     PlayerControls(
@@ -268,7 +277,15 @@ void _smoothScrollToLyric(int index) {
                       onPrevious: _playPreviousSong,
                       position: audioNotifier.currentPosition,
                       duration: audioNotifier.totalDuration,
-                      onSeek: (d) => audioNotifier.seek(d),
+                      onSeek: (position) {
+                        _isManualSeeking = true;
+                        audioNotifier.seek(position);
+                        // Force immediate update
+                        _updateCurrentSongIndex(position);
+                        Future.delayed(const Duration(seconds: 1), () {
+                          _isManualSeeking = false;
+                        });
+                      },
                     ),
                   ],
                 ),
@@ -279,6 +296,7 @@ void _smoothScrollToLyric(int index) {
       ),
     );
   }
+
   Widget _buildLyricsSection(LyricsNotifier lyricsNotifier) {
     if (lyricsNotifier.isLoadingLyrics || _isFetchingLyrics) {
       return Center(
