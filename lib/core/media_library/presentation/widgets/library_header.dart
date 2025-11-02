@@ -40,7 +40,8 @@ class LibraryHeader extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
                 ),
                 onChanged: onSearch,
               ),
@@ -55,7 +56,10 @@ class LibraryHeader extends StatelessWidget {
                   value: SortType.title,
                   child: Row(
                     children: [
-                      Icon(Icons.title, color: selectedSort == SortType.title ? Colors.deepPurpleAccent : Colors.white54),
+                      Icon(Icons.title,
+                          color: selectedSort == SortType.title
+                              ? Colors.deepPurpleAccent
+                              : Colors.white54),
                       const SizedBox(width: 8),
                       const Text('Title'),
                     ],
@@ -65,7 +69,10 @@ class LibraryHeader extends StatelessWidget {
                   value: SortType.artist,
                   child: Row(
                     children: [
-                      Icon(Icons.person, color: selectedSort == SortType.artist ? Colors.deepPurpleAccent : Colors.white54),
+                      Icon(Icons.person,
+                          color: selectedSort == SortType.artist
+                              ? Colors.deepPurpleAccent
+                              : Colors.white54),
                       const SizedBox(width: 8),
                       const Text('Artist'),
                     ],
@@ -75,7 +82,10 @@ class LibraryHeader extends StatelessWidget {
                   value: SortType.album,
                   child: Row(
                     children: [
-                      Icon(Icons.album, color: selectedSort == SortType.album ? Colors.deepPurpleAccent : Colors.white54),
+                      Icon(Icons.album,
+                          color: selectedSort == SortType.album
+                              ? Colors.deepPurpleAccent
+                              : Colors.white54),
                       const SizedBox(width: 8),
                       const Text('Album'),
                     ],
@@ -85,7 +95,10 @@ class LibraryHeader extends StatelessWidget {
                   value: SortType.duration,
                   child: Row(
                     children: [
-                      Icon(Icons.timer, color: selectedSort == SortType.duration ? Colors.deepPurpleAccent : Colors.white54),
+                      Icon(Icons.timer,
+                          color: selectedSort == SortType.duration
+                              ? Colors.deepPurpleAccent
+                              : Colors.white54),
                       const SizedBox(width: 8),
                       const Text('Duration'),
                     ],
