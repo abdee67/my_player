@@ -22,11 +22,9 @@ class _BottomNavState extends State<BottomNav> {
   @override
   Widget build(BuildContext context) {
     // Get the shared AudioPlayer instance from the AudioPlayerNotifier
-    final player =
-        Provider.of<AudioPlayerNotifier>(context, listen: false).player;
     final List<Widget> screens = [
       const LibraryScreen(),
-      PlayerScreen(audioPlayer: player, lyrics: const []),
+      PlayerScreen(),
       const InternalStorageScreen(),
       const AlbumsScreen(),
       const SearchScreen(),

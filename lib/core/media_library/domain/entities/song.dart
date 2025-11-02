@@ -14,8 +14,9 @@ class Song extends Equatable {
   final String? genre;
   final int? trackNumber;
   final int? year;
+  final String? filePath;
 
-  Song({
+  const Song({
     required this.id,
     required this.title,
     required this.artist,
@@ -27,6 +28,7 @@ class Song extends Equatable {
     this.genre,
     this.trackNumber,
     this.year,
+    this.filePath,
   });
 
   String get displayTitle => title.isNotEmpty ? title : 'Unknown Title';
@@ -52,6 +54,7 @@ class Song extends Equatable {
       genre: map['genre'] as String? ?? 'Unknown Genre',
       trackNumber: map['trackNumber'] as int? ?? 0,
       year: map['year'] as int? ?? 0,
+      filePath: map['data'] as String?,
     );
   }
 
@@ -67,6 +70,7 @@ class Song extends Equatable {
       'genre': genre,
       'trackNumber': trackNumber,
       'year': year,
+      'filePath': filePath,
       //albumArt is not cached for performance/storage reasons
     };
   }

@@ -1,49 +1,40 @@
+// lib/features/now_playing/presentation/screens/player_screen.dart
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:my_player/core/lyrics/domain/entities/lyricLine.dart';
-import 'package:my_player/core/lyrics/presentation/notifiers/lyrics_notifier.dart';
+import 'package:my_player/core/audio/domain/entities/audio_state.dart';
 import 'package:my_player/core/audio/presentation/notifiers/audio_player_notifier.dart';
+import 'package:my_player/core/lyrics/presentation/notifiers/lyrics_notifier.dart'
+    hide lyricsProvider;
 import 'package:my_player/core/lyrics/presentation/widgets/lyrics_list.dart';
 import 'package:my_player/features/now_playing/presentation/widgets/modern_app_bar.dart';
 import 'package:my_player/features/now_playing/presentation/widgets/player_controls.dart';
-import 'package:provider/provider.dart';
+import 'package:my_player/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
-// Removed unused import: music_library_notifier.dart
 
-class PlayerScreen extends StatefulWidget {
-  final Player audioPlayer;
-  final List<LyricLine> lyrics;
-  const PlayerScreen(
-      {super.key, required this.audioPlayer, required this.lyrics});
+class PlayerScreen extends ConsumerStatefulWidget {
+  const PlayerScreen({super.key});
 
   @override
-  State<PlayerScreen> createState() => _PlayerScreenState();
+  ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends State<PlayerScreen>
+class _PlayerScreenState extends ConsumerState<PlayerScreen>
     with TickerProviderStateMixin {
-  late AudioPlayerNotifier _audioPlayerNotifier;
-  late LyricsNotifier _lyricsNotifier;
   late AnimationController _albumArtController;
   late AnimationController _fadeController;
-  final bool _isFetchingLyrics = false;
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
-  int _currentLyricIndex = 0; // The index of the currently active lyric line
+
+  int _currentLyricIndex = 0;
   String? _currentSongId;
+  bool _isManualSeeking = false;
 
   @override
   void initState() {
     super.initState();
-    _audioPlayerNotifier = Provider.of<AudioPlayerNotifier>(
-      context,
-      listen: false,
-    );
-    _lyricsNotifier = Provider.of<LyricsNotifier>(context, listen: false);
     _albumArtController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -53,252 +44,269 @@ class _PlayerScreenState extends State<PlayerScreen>
       vsync: this,
     );
 
-    // Start animations
     _albumArtController.forward();
     _fadeController.forward();
-
-    // Listen to position updates from AudioPlayerNotifier for consistent timing
-    _audioPlayerNotifier.addListener(() {
-      if (!_isManualSeeking) {
-        _updateCurrentSongIndex(_audioPlayerNotifier.currentPosition);
-      }
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndFetchLyrics();
-    });
-  }
-
-  bool _isManualSeeking = false; // Track if user is manually seeking
-
-  void _seekToLyricTime(Duration time) {
-    _isManualSeeking = true;
-    widget.audioPlayer.seek(time);
-    _updateCurrentSongIndex(time);
-    Future.delayed(Duration(milliseconds: 500), () => _isManualSeeking = false);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Listen for changes in the current song to fetch new lyrics
-    _audioPlayerNotifier.addListener(_onAudioPlayerChanged);
+    _checkAndFetchLyrics();
   }
 
   @override
   void dispose() {
-    _audioPlayerNotifier.removeListener(_onAudioPlayerChanged);
     _albumArtController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
 
-  void _onAudioPlayerChanged() {
-    // Check if song changed
-    final currentSong = _audioPlayerNotifier.currentSong;
-    if (currentSong?.id != _currentSongId) {
-      setState(() => _currentLyricIndex = 0); // Reset index
-      _checkAndFetchLyrics();
-      _albumArtController.stop();
-      _fadeController.reset();
-      _albumArtController.forward();
-      _fadeController.forward();
-    } // Scroll to top when song change
-  }
-
   void _checkAndFetchLyrics() {
-    final currentSong = _audioPlayerNotifier.currentSong;
-    if (currentSong != null) {
-      print(
-        "Fetching lyrics for: ${currentSong.title} by ${currentSong.artist}",
-      );
-      _lyricsNotifier.fetchAndParseLyrics(currentSong);
-      // Scroll to top, then center current lyric after lyrics load
+    final audioState = ref.read(audioPlayerProvider);
+    final lyricsNotifier = ref.read(lyricsProvider.notifier);
+
+    final currentSong = audioState.currentSong;
+    if (currentSong != null && currentSong.id != _currentSongId) {
+      _currentSongId = currentSong.id;
+      lyricsNotifier.fetchAndParseLyrics(currentSong);
+      // Reset scroll position for new song
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _itemScrollController.scrollTo(
-          index: 0,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          alignment: 0.0, // Align to the top
-        );
-        _smoothScrollToLyric(0); // Center the first lyric
+        _scrollToIndex(0);
       });
-    } else {
-      print("No current song, clearing lyrics");
-      _lyricsNotifier.clearLyrics();
     }
   }
 
-  void _updateCurrentSongIndex(Duration currentPosition) {
-    final lyrics = _lyricsNotifier.currentLyrics;
-    if (lyrics.isEmpty) return;
+  void _updateLyricPosition(Duration position) {
+    if (_isManualSeeking) return;
 
-    int newIndex = _findLyricIndex(currentPosition, lyrics);
+    final lyricsState = ref.read(lyricsProvider);
+    if (!lyricsState.hasTimestamps || lyricsState.lyrics.isEmpty) return;
+
+    final newIndex =
+        ref.read(lyricsProvider.notifier).findCurrentLyricIndex(position);
 
     if (newIndex != _currentLyricIndex) {
-      setState(() => _currentLyricIndex = newIndex);
-      WidgetsBinding.instance.addPostFrameCallback((_) {});
-    } else {
+      setState(() {
+        _currentLyricIndex = newIndex;
+      });
       _smoothScrollToLyric(newIndex);
     }
   }
 
-  int _findLyricIndex(Duration position, List<LyricLine> lyrics) {
-    if (lyrics.isEmpty) return 0;
-    // Add a small offset to account for audio processing delays and make sync more responsive
-    final adjustedPosition = position + const Duration(milliseconds: 150);
-
-    // Find the most appropriate lyric line for the current position
-
-    for (int i = 0; i < lyrics.length; i++) {
-      final line = lyrics[i];
-      final nextLine = i < lyrics.length - 1 ? lyrics[i + 1] : null;
-      if (adjustedPosition >= line.timestamp &&
-          (nextLine == null || adjustedPosition < nextLine.timestamp)) {
-        return i;
-      }
-    }
-    return lyrics.length - 1;
-  }
-
   void _smoothScrollToLyric(int index) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future.delayed(Duration(milliseconds: 200), () {
-        _itemScrollController.scrollTo(
-          index: index,
-          duration: const Duration(milliseconds: 800),
-          curve: Curves.easeInOut,
-          alignment: 0.5, // Center the active line
-        );
-      });
+      final lyricsLen = ref.read(lyricsProvider).lyrics.length;
+      if (index < 0 || index >= lyricsLen) return;
+      if (!_itemScrollController.isAttached) {
+        // Try again next frame once the list attaches
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _smoothScrollToLyric(index));
+        return;
+      }
+      _itemScrollController.scrollTo(
+        index: index,
+        duration: const Duration(milliseconds: 800),
+        curve: Curves.easeInOut,
+        alignment: 0.4, // Slightly above center for better UX
+      );
+    });
+  }
+
+  void _scrollToIndex(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final lyricsLen = ref.read(lyricsProvider).lyrics.length;
+      if (index < 0 || index >= lyricsLen) return;
+      if (!_itemScrollController.isAttached) {
+        // Try again next frame once the list attaches
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _scrollToIndex(index));
+        return;
+      }
+      _itemScrollController.jumpTo(index: index);
+    });
+  }
+
+  void _seekToLyricTime(Duration time) {
+    _isManualSeeking = true;
+    ref.read(audioPlayerProvider.notifier).seek(time);
+
+    // Update lyric position immediately
+    final newIndex =
+        ref.read(lyricsProvider.notifier).findCurrentLyricIndex(time);
+    setState(() {
+      _currentLyricIndex = newIndex;
+    });
+    _smoothScrollToLyric(newIndex);
+
+    // Reset manual seeking flag after a delay
+    Future.delayed(const Duration(seconds: 2), () {
+      _isManualSeeking = false;
     });
   }
 
   void _playNextSong() {
-    _audioPlayerNotifier.playNext();
+    ref.read(audioPlayerProvider.notifier).playNext();
   }
 
   void _playPreviousSong() {
-    _audioPlayerNotifier.playPrevious();
+    ref.read(audioPlayerProvider.notifier).playPrevious();
   }
-
-  // Removed unused _formatDuration
 
   @override
   Widget build(BuildContext context) {
+    final audioState = ref.watch(audioPlayerProvider);
+    final lyricsState = ref.watch(lyricsProvider);
+
+    // Listen to position changes for lyric sync via AudioState updates
+    ref.listen<AudioState>(
+      audioPlayerProvider,
+      (previous, next) {
+        _updateLyricPosition(next.currentPosition);
+      },
+    );
+
+    // Check for song changes
+    if (audioState.currentSong?.id != _currentSongId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkAndFetchLyrics();
+      });
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Consumer2<AudioPlayerNotifier, LyricsNotifier>(
-        builder: (context, audioNotifier, lyricsNotifier, _) {
-          return Stack(
-            children: [
-              // Blurred Album Art Background
-              if (audioNotifier.currentSong?.albumArt != null)
-                Positioned.fill(
-                  child: ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-                    child: Image.memory(
-                      audioNotifier.currentSong!.albumArt!,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                )
-              else
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.blue.shade900,
-                          Colors.purple.shade900,
-                          Colors.black,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                  ),
-                ),
+      body: Stack(
+        children: [
+          // Background with blurred album art or gradient
+          _buildBackground(audioState),
 
-              // Dark overlay for better text readability
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.3),
-                        Colors.black.withOpacity(0.7),
-                        Colors.black.withOpacity(0.9),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              // Main content
-              SafeArea(
-                child: Column(
-                  children: [
-                    ModernAppBar(
-                      key: const Key('modernAppBar'),
-                      title: audioNotifier.currentSong?.artist ?? 'No Artist',
-                      subtitle:
-                          audioNotifier.currentSong?.title ?? 'No Song Playing',
-                      onBack: () => Navigator.of(context).maybePop(),
-                    ),
-                    Expanded(
-                      child: Container(
-                        margin: const EdgeInsets.only(top: 20),
-                        constraints: BoxConstraints(
-                          maxHeight: MediaQuery.of(context).size.height * 0.7,
-                        ),
-                        child: _buildLyricsSection(_lyricsNotifier),
-                      ),
-                    ),
-                    // Player Controls
-                    PlayerControls(
-                      key: const Key('playerControls'),
-                      isPlaying: audioNotifier.isPlaying,
-                      onPlayPause: () {
-                        if (audioNotifier.isPlaying) {
-                          audioNotifier.pauseSong();
-                        } else {
-                          audioNotifier.resumeSong();
-                        }
-                      },
-                      onNext: _playNextSong,
-                      onPrevious: _playPreviousSong,
-                      position: audioNotifier.currentPosition,
-                      duration: audioNotifier.totalDuration,
-                      onSeek: (position) {
-                        _isManualSeeking = true;
-                        audioNotifier.seek(position);
-                        // Force immediate update
-                        _updateCurrentSongIndex(position);
-                        Future.delayed(const Duration(seconds: 1), () {
-                          _isManualSeeking = false;
-                        });
-                      },
-                    ),
+          // Dark overlay for readability
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.3),
+                    Colors.black.withOpacity(0.6),
+                    Colors.black.withOpacity(0.9),
                   ],
                 ),
               ),
-            ],
-          );
-        },
+            ),
+          ),
+
+          // Main content
+          SafeArea(
+            child: Column(
+              children: [
+                ModernAppBar(
+                  key: const Key('modernAppBar'),
+                  title: audioState.currentSong?.artist ?? 'Unknown Artist',
+                  subtitle: audioState.currentSong?.title ?? 'No Song Playing',
+                  onBack: () => Navigator.of(context).pop(),
+                ),
+
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 20),
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.7,
+                    ),
+                    child: _buildLyricsSection(lyricsState),
+                  ),
+                ),
+
+                // Player Controls
+                PlayerControls(
+                  key: const Key('playerControls'),
+                  isPlaying: audioState.isPlaying,
+                  onPlayPause: () {
+                    if (audioState.isPlaying) {
+                      ref.read(audioPlayerProvider.notifier).pause();
+                    } else {
+                      ref.read(audioPlayerProvider.notifier).resume();
+                    }
+                  },
+                  onNext: _playNextSong,
+                  onPrevious: _playPreviousSong,
+                  position: audioState.currentPosition,
+                  duration: audioState.totalDuration,
+                  onSeek: (position) {
+                    _isManualSeeking = true;
+                    ref.read(audioPlayerProvider.notifier).seek(position);
+                    // Update lyric position immediately
+                    _updateLyricPosition(position);
+                    Future.delayed(const Duration(seconds: 2), () {
+                      _isManualSeeking = false;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildLyricsSection(LyricsNotifier lyricsNotifier) {
-    if (lyricsNotifier.isLoadingLyrics || _isFetchingLyrics) {
-      return Center(
-        child: SpinKitSpinningLines(color: Colors.deepPurpleAccent, size: 50),
+  Widget _buildBackground(AudioState audioState) {
+    if (audioState.currentSong?.albumArt != null) {
+      return Positioned.fill(
+        child: ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Image.memory(
+            audioState.currentSong!.albumArt!,
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    } else {
+      return Positioned.fill(
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.blue.shade900,
+                Colors.purple.shade900,
+                Colors.black,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
       );
     }
-    final lyrics = lyricsNotifier.currentLyrics;
-    if (lyrics.isEmpty) {
+  }
+
+  Widget _buildLyricsSection(LyricsState lyricsState) {
+    if (lyricsState.isLoading) {
+      return Center(
+        child: SpinKitSpinningLines(
+          color: Colors.deepPurpleAccent,
+          size: 50,
+        ),
+      );
+    }
+
+    if (lyricsState.error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            lyricsState.error!,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 16,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    if (lyricsState.lyrics.isEmpty) {
       return const Center(
         child: Text(
           'No Lyrics Available',
@@ -309,13 +317,16 @@ class _PlayerScreenState extends State<PlayerScreen>
 
     return LyricsList(
       key: const Key('lyricsList'),
-      lyrics: lyrics,
+      lyrics: lyricsState.lyrics,
       currentIndex: _currentLyricIndex,
+      hasTimestamps: lyricsState.hasTimestamps,
       itemScrollController: _itemScrollController,
       itemPositionsListener: _itemPositionsListener,
       onTapLine: (index) {
-        final lyricTime = lyrics[index].timestamp;
-        _seekToLyricTime(lyricTime);
+        if (lyricsState.hasTimestamps) {
+          final lyricTime = lyricsState.lyrics[index].timestamp;
+          _seekToLyricTime(lyricTime);
+        }
       },
     );
   }

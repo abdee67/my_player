@@ -1,10 +1,12 @@
+// lib/core/lyrics/presentation/widgets/lyrics_list.dart
 import 'package:flutter/material.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:my_player/core/lyrics/domain/entities/lyricLine.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 class LyricsList extends StatelessWidget {
   final List<LyricLine> lyrics;
   final int currentIndex;
+  final bool hasTimestamps;
   final ItemScrollController itemScrollController;
   final ItemPositionsListener itemPositionsListener;
   final Function(int) onTapLine;
@@ -13,6 +15,7 @@ class LyricsList extends StatelessWidget {
     super.key,
     required this.lyrics,
     required this.currentIndex,
+    required this.hasTimestamps,
     required this.itemScrollController,
     required this.itemPositionsListener,
     required this.onTapLine,
@@ -21,43 +24,27 @@ class LyricsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ScrollablePositionedList.builder(
+      itemCount: lyrics.length,
       itemScrollController: itemScrollController,
       itemPositionsListener: itemPositionsListener,
-      itemCount: lyrics.length,
-      padding: const EdgeInsets.symmetric(
-          vertical: 24), // Reduced padding for better centering
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       itemBuilder: (context, index) {
-        final isCurrent = index == currentIndex;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          margin: EdgeInsets.symmetric(
-              vertical: isCurrent ? 12 : 0, horizontal: isCurrent ? 24 : 0),
-          decoration: BoxDecoration(
-            color: isCurrent
-                ? Colors.deepPurple.withOpacity(0.2)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+        final lyric = lyrics[index];
+        final isActive = index == currentIndex && hasTimestamps;
+        
+        return GestureDetector(
+          onTap: () => onTapLine(index),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
             child: Text(
-              lyrics[index].text,
-              textAlign: TextAlign.center,
+              lyric.text,
               style: TextStyle(
-                fontSize: isCurrent ? 22 : 18,
-                color: isCurrent ? Colors.deepPurple : Colors.white70,
-                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                shadows: isCurrent
-                    ? [
-                        Shadow(
-                          offset: Offset(0, 0),
-                          blurRadius: 3,
-                          color: Colors.deepPurpleAccent.withOpacity(0.7),
-                        ),
-                      ]
-                    : null,
+                fontSize: isActive ? 22 : 18,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                color: isActive ? Colors.white : Colors.white70,
+                height: 1.4,
               ),
+              textAlign: TextAlign.center,
             ),
           ),
         );

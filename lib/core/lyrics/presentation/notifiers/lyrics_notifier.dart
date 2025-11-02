@@ -1,82 +1,113 @@
-import 'package:flutter/material.dart';
-import 'package:my_player/core/lyrics/domain/entities/lyricLine.dart';
-// Correct import for the package
-import 'package:my_player/core/media_library/domain/entities/song.dart';
+// lib/core/lyrics/presentation/notifiers/lyrics_notifier.dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:my_player/core/lyrics/data/lyrics_service.dart';
+import 'package:my_player/core/lyrics/domain/entities/lyricLine.dart';
+import 'package:my_player/core/media_library/domain/entities/song.dart';
+import 'package:my_player/provider.dart';
 
-/// Notifier for managing and exposing lyrics data to the UI.
-class LyricsNotifier extends ChangeNotifier {
+class LyricsState {
+  final List<LyricLine> lyrics;
+  final bool isLoading;
+  final String? error;
+  final bool hasTimestamps; // Whether lyrics have proper timestamps
+
+  const LyricsState({
+    this.lyrics = const [],
+    this.isLoading = false,
+    this.error,
+    this.hasTimestamps = false,
+  });
+
+  LyricsState copyWith({
+    List<LyricLine>? lyrics,
+    bool? isLoading,
+    String? error,
+    bool? hasTimestamps,
+  }) {
+    return LyricsState(
+      lyrics: lyrics ?? this.lyrics,
+      isLoading: isLoading ?? this.isLoading,
+      error: error ?? this.error,
+      hasTimestamps: hasTimestamps ?? this.hasTimestamps,
+    );
+  }
+}
+
+class LyricsNotifier extends StateNotifier<LyricsState> {
   final LyricsService _lyricsService;
+  String? _currentSongId;
 
-  List<LyricLine> _currentLyrics = [];
-  bool _isLoadingLyrics = false;
-  String? _lyricsErrorMessage;
-  String? _currentSongId; // Track current song to prevent duplicate fetching
+  LyricsNotifier(this._lyricsService) : super(const LyricsState());
 
-  LyricsNotifier(this._lyricsService);
-
-  List<LyricLine> get currentLyrics => _currentLyrics;
-  bool get isLoadingLyrics => _isLoadingLyrics;
-  String? get lyricsErrorMessage => _lyricsErrorMessage;
-
-  /// Fetches and parses lyrics for a given song.
+  /// Fetches and parses lyrics for a given song
   Future<void> fetchAndParseLyrics(Song song) async {
-    if (_isLoadingLyrics && _currentSongId == song.id) {
-      print("Already loading lyrics for song: ${song.title}");
-      return;
-    }
-    if (_currentSongId == song.id && _currentLyrics.isNotEmpty) {
-      print("Already have lyrics for song: ${song.title}");
-      return;
-    }
+    // Prevent duplicate fetching
+    if (state.isLoading && _currentSongId == song.id) return;
+    if (_currentSongId == song.id && state.lyrics.isNotEmpty) return;
 
-    _isLoadingLyrics = true;
-    _lyricsErrorMessage = null;
-    _currentLyrics = []; // Clear previous lyrics
     _currentSongId = song.id;
-
-    print("Starting to fetch lyrics for: ${song.title} by ${song.artist}");
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      notifyListeners();
-    });
+    state = const LyricsState(isLoading: true);
 
     try {
-      final rawLrc = await _lyricsService.fetchLyrics(
+      final rawLyrics = await _lyricsService.fetchLyrics(
         song.title,
         song.artist,
         song.album,
         song.duration,
-        song.data, // Pass the file path for embedded lyrics extraction
+        song.filePath,
       );
 
-      if (rawLrc != null) {
-        _currentLyrics = await _lyricsService.parseLrc(rawLrc);
-        print(
-          "Successfully parsed ${_currentLyrics.length} lyric lines for ${song.title}",
+      if (rawLyrics != null && rawLyrics.isNotEmpty) {
+        final lyrics = await _lyricsService.parseLyrics(rawLyrics);
+        final hasTimestamps = lyrics.isNotEmpty &&
+            lyrics.any((line) => line.timestamp.inSeconds > 0);
+
+        state = LyricsState(
+          lyrics: lyrics,
+          isLoading: false,
+          hasTimestamps: hasTimestamps,
         );
       } else {
-        _lyricsErrorMessage = "No synchronized lyrics found for this song.";
-        print("No lyrics found for: ${song.title}");
+        state = LyricsState(
+          isLoading: false,
+          error: "Let's see ur guessing skill for this one..",
+          lyrics: [],
+          hasTimestamps: false,
+        );
       }
     } catch (e) {
-      _lyricsErrorMessage = "Error fetching or parsing lyrics: $e";
-      print("Error in LyricsNotifier for ${song.title}: $e");
-    } finally {
-      _isLoadingLyrics = false;
-      // Use microtask to ensure notifyListeners is called after the current build phase
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        notifyListeners();
-      });
+      state = LyricsState(
+        isLoading: false,
+        error: "Failed to load lyrics: ${e.toString()}",
+        lyrics: [],
+        hasTimestamps: false,
+      );
     }
   }
 
-  /// Clears current lyrics (e.g., when song changes)
-  void clearLyrics() {
-    _currentLyrics = [];
-    _lyricsErrorMessage = null;
-    _isLoadingLyrics = false;
-    _currentSongId = null;
-    print("Cleared lyrics");
-    notifyListeners();
+  /// Find current lyric index based on playback position
+  int findCurrentLyricIndex(Duration position) {
+    if (state.lyrics.isEmpty || !state.hasTimestamps) return 0;
+
+    for (int i = state.lyrics.length - 1; i >= 0; i--) {
+      if (position >= state.lyrics[i].timestamp) {
+        return i;
+      }
+    }
+    return 0;
   }
+
+  /// Clear current lyrics
+  void clearLyrics() {
+    _currentSongId = null;
+    state = const LyricsState();
+  }
+
+  /// Get current song ID
+  String? get currentSongId => _currentSongId;
 }
+
+// Riverpod Provider
+final lyricsProvider = StateNotifierProvider<LyricsNotifier, LyricsState>(
+  (ref) => LyricsNotifier(ref.read(lyricsServiceProvider)),
+);

@@ -1,29 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:provider/provider.dart';
-import 'package:my_player/core/audio/presentation/notifiers/audio_player_notifier.dart';
-import 'package:my_player/core/media_library/presentation/notifiers/music_library_notifier.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:my_player/core/media_library/presentation/widgets/album_art_widget.dart';
 import 'dart:ui';
 import 'package:my_player/core/media_library/presentation/widgets/library_header.dart';
+import 'package:my_player/features/home/presentation/widgets/custom_refresh_indicator.dart';
+import 'package:my_player/provider.dart';
 
-class LibraryScreen extends StatefulWidget {
+class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
   @override
-  State<LibraryScreen> createState() => _LibraryScreenState();
+  ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
 }
 
-class _LibraryScreenState extends State<LibraryScreen> {
+class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   String _search = '';
   SortType _sortType = SortType.title;
-  final AudioPlayer myPlayerInstance = AudioPlayer();
 
   @override
   Widget build(BuildContext context) {
-    final musicLibraryNotifier = Provider.of<MusicLibraryNotifier>(context);
-    final audioPlayerNotifier = Provider.of<AudioPlayerNotifier>(context);
+    final libraryState = ref.watch(musicLibraryProvider);
+    final libraryNotifier = ref.read(musicLibraryProvider.notifier);
+    final audioState = ref.watch(audioPlayerProvider);
+    final audioNotifier = ref.read(audioPlayerProvider.notifier);
 
     return Stack(
       children: [
@@ -53,70 +54,85 @@ class _LibraryScreenState extends State<LibraryScreen> {
         LibraryHeader(
           onSearch: (val) => setState(() => _search = val),
           onSort: (sortBy) => setState(() => _sortType = sortBy),
-          onRefresh: () async => await musicLibraryNotifier.smartRefresh(),
+          onRefresh: () {
+            libraryNotifier.loadSongs();
+          },
           selectedSort: _sortType,
         ),
         // Main content: List of songs
         Padding(
           padding: const EdgeInsets.only(top: 80.0),
           child: Material(
-            child: Consumer<MusicLibraryNotifier>(
-              builder: (context, notifier, child) {
-                if (notifier.isLoading) {
-                  // Shimmer/skeleton loader
-                  return ListView.builder(
-                    padding: const EdgeInsets.only(top: 16),
-                    itemCount: notifier.songs.length + 1,
-                    itemBuilder: (context, i) => Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 2, vertical: 8),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          radius: 28,
-                          backgroundColor: Colors.grey.shade800,
-                          child: SizedBox(
-                            width: 56,
-                            height: 56,
-                            child: Center(
-                              child: SpinKitSpinningLines(
-                                color: Colors.deepPurpleAccent,
-                                size: 30,
+            child: Builder(
+              builder: (context) {
+                Future<void> onRefresh() => libraryNotifier.loadSongs();
+
+                Widget buildLoadingList() => ListView.builder(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.only(top: 16),
+                      itemCount: libraryState.songs.length + 1,
+                      itemBuilder: (context, i) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 2, vertical: 8),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            radius: 28,
+                            backgroundColor: Colors.grey.shade800,
+                            child: SizedBox(
+                              width: 56,
+                              height: 56,
+                              child: Center(
+                                child: SpinKitSpinningLines(
+                                  color: Colors.deepPurpleAccent,
+                                  size: 30,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        title: Container(
-                          height: 16,
-                          color: Colors.white.withOpacity(0.1),
-                        ),
-                        subtitle: Container(
-                          height: 12,
-                          width: 9,
-                          color: Colors.white.withOpacity(0.1),
+                          title: Container(
+                            height: 16,
+                            color: Colors.white.withOpacity(0.1),
+                          ),
+                          subtitle: Container(
+                            height: 12,
+                            width: 9,
+                            color: Colors.white.withOpacity(0.1),
+                          ),
                         ),
                       ),
-                    ),
-                  );
+                    );
+
+                if (libraryState.isLoading) {
+                  return WarpIndicator(
+                      onRefresh: onRefresh, child: buildLoadingList());
                 }
-                if (notifier.errorMessage != null) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(notifier.errorMessage!,
-                            style: const TextStyle(color: Colors.white)),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: () =>
-                              notifier.loadSongs(forceRefresh: true),
-                          child: const Text('Retry'),
+
+                if (libraryState.error != null) {
+                  final errorChild = ListView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.only(top: 32),
+                    children: [
+                      Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(libraryState.error!,
+                                style: const TextStyle(color: Colors.white)),
+                            const SizedBox(height: 10),
+                            ElevatedButton(
+                              onPressed: () => libraryNotifier.loadSongs(),
+                              child: const Text('Retry'),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   );
+                  return WarpIndicator(onRefresh: onRefresh, child: errorChild);
                 }
+
                 // Filter and sort
-                List songs = notifier.songs.where((song) {
+                List songs = libraryState.songs.where((song) {
                   final q = _search.toLowerCase();
                   return song.title.toLowerCase().contains(q) ||
                       song.artist.toLowerCase().contains(q) ||
@@ -140,16 +156,28 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       return a.duration.compareTo(b.duration);
                   }
                 });
+
+                Widget buildEmptyList() => ListView(
+                      physics: const BouncingScrollPhysics(),
+                      children: const [
+                        SizedBox(height: 120),
+                        Center(
+                          child: Text('No music found.',
+                              style: TextStyle(color: Colors.white70)),
+                        ),
+                      ],
+                    );
+
                 if (songs.isEmpty) {
-                  return const Center(
-                    child: Text('No music found.',
-                        style: TextStyle(color: Colors.white70)),
-                  );
+                  return WarpIndicator(
+                      onRefresh: onRefresh, child: buildEmptyList());
                 }
-                return ListView.builder(
+
+                final list = ListView.builder(
+                  physics: const BouncingScrollPhysics(),
                   padding: EdgeInsets.only(
                     top: 0,
-                    bottom: audioPlayerNotifier.currentSong != null ? 90.0 : 0,
+                    bottom: audioState.currentSong != null ? 90.0 : 0,
                   ),
                   itemCount: songs.length,
                   itemBuilder: (context, index) {
@@ -221,7 +249,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                 tag: 'albumArt_${song.id}',
                                 child: AlbumArtWidget(
                                   songId: int.tryParse(song.id) ?? 0,
-                                  albumArt: notifier.songs[index].albumArt,
+                                  albumArt: song.albumArt,
                                   radius: 28,
                                 ),
                               ),
@@ -237,16 +265,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  if (audioPlayerNotifier.currentSong?.id ==
-                                          song.id &&
-                                      audioPlayerNotifier.isPlaying)
+                                  if (audioState.currentSong?.id == song.id &&
+                                      audioState.isPlaying)
                                     AnimatedContainer(
                                       duration:
                                           const Duration(milliseconds: 1000),
                                       transform: Matrix4.rotationZ(
-                                          audioPlayerNotifier.isPlaying
-                                              ? 0.1
-                                              : 0),
+                                          audioState.isPlaying ? 0.1 : 0),
                                       width: 24,
                                       height: 24,
                                       child: Icon(
@@ -257,16 +282,32 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                     ),
                                 ],
                               ),
-                              onTap: () {
-                                audioPlayerNotifier.setPlaylist(notifier.songs,
-                                    startIndex: notifier.songs.indexOf(song));
-                                audioPlayerNotifier.playSong(song);
+                              onTap: () async {
+                                // all_musics.dart, inside onTap:
+                                final startIndex =
+                                    libraryState.songs.indexOf(song);
+
+// Set playlist without autoplay (so UI can display selection but no sound starts)
+                                await audioNotifier.setPlaylist(
+                                    libraryState.songs,
+                                    startIndex: startIndex,
+                                    autoPlay: false);
+
+// Fetch lyrics (await API response)
+                                await ref
+                                    .read(lyricsProvider.notifier)
+                                    .fetchAndParseLyrics(song);
+
+// Then start playback at the selected index
+                                await audioNotifier.playAtIndex(startIndex);
                               },
                             ),
                           ),
                         ));
                   },
                 );
+
+                return WarpIndicator(onRefresh: onRefresh, child: list);
               },
             ),
           ),

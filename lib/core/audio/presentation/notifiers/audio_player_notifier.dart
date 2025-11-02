@@ -1,101 +1,191 @@
-import 'package:flutter/material.dart';
-import 'package:media_kit/media_kit.dart';
+// lib/core/audio/presentation/notifiers/audio_player_notifier.dart
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:my_player/core/audio/data/audio_player_service.dart';
+import 'package:my_player/core/audio/domain/entities/audio_state.dart';
 import 'package:my_player/core/media_library/domain/entities/song.dart';
 
-/// Notifier for managing and exposing audio player state to the UI.
-class AudioPlayerNotifier extends ChangeNotifier {
-  final AudioPlayerService _audioPlayerService;
-  Player get player => _audioPlayerService.player;
+class AudioPlayerNotifier extends StateNotifier<AudioState> {
+  final AudioPlayerService _audioService;
+  StreamSubscription<Song?>? _currentSongSubscription;
+  StreamSubscription<bool>? _isPlayingSubscription;
+  StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration>? _durationSubscription;
 
-  Song? _currentSong;
-  bool _isPlaying = false;
-  Duration _currentPosition = Duration.zero;
-  Duration _totalDuration = Duration.zero;
-  List<Song> _playlist = [];
-  int _currentIndex = -1;
-  bool _autoContinue = true;
+  AudioPlayerNotifier(this._audioService) : super(const AudioState()) {
+    _initializeListeners();
+  }
 
-  AudioPlayerNotifier(this._audioPlayerService) {
-    _audioPlayerService.currentSongStream.listen((song) {
-      _currentSong = song;
-      notifyListeners();
+  void _initializeListeners() {
+    _currentSongSubscription = _audioService.currentSongStream.listen((song) {
+      state = state.copyWith(currentSong: song);
     });
-    _audioPlayerService.isPlayingStream.listen((isPlaying) {
-      _isPlaying = isPlaying;
-      notifyListeners();
+
+    _isPlayingSubscription = _audioService.isPlayingStream.listen((isPlaying) {
+      state = state.copyWith(isPlaying: isPlaying);
     });
-    _audioPlayerService.currentPositionStream.listen((position) {
-      _currentPosition = position;
-      notifyListeners();
+
+    _positionSubscription =
+        _audioService.currentPositionStream.listen((position) {
+      state = state.copyWith(currentPosition: position);
     });
-    _audioPlayerService.totalDurationStream.listen((duration) {
-      _totalDuration = duration;
-      notifyListeners();
-    });
-    _audioPlayerService.playlistStream.listen((playlist) {
-      _playlist = playlist;
-      notifyListeners();
+
+    _durationSubscription =
+        _audioService.totalDurationStream.listen((duration) {
+      state = state.copyWith(totalDuration: duration);
     });
   }
 
-  Song? get currentSong => _currentSong;
-  bool get isPlaying => _isPlaying;
-  Duration get currentPosition => _currentPosition;
-  Duration get totalDuration => _totalDuration;
-  List<Song> get playlist => _playlist;
-  int get currentIndex => _currentIndex;
-  bool get autoContinue => _autoContinue;
-
-  Future<void> playSong(Song song) async {
-    await _audioPlayerService.play(song);
+  // Play a single song
+  Future<void> play(Song song) async {
+    try {
+      state = state.copyWith(isLoading: true, error: null);
+      await _audioService.play(song);
+      state = state.copyWith(
+        isLoading: false,
+        currentSong: song,
+        playlist: [song],
+        currentIndex: 0,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to play song: ${e.toString()}',
+      );
+    }
   }
 
-  Future<void> pauseSong() async {
-    await _audioPlayerService.pause();
+  // Set and play a playlist
+  Future<void> setPlaylist(List<Song> playlist,
+      {int startIndex = 0, bool autoPlay = true}) async {
+    try {
+      state = state.copyWith(isLoading: true, error: null);
+      _audioService.setPlaylist(playlist,
+          startIndex: startIndex, autoPlay: autoPlay);
+      state = state.copyWith(
+        isLoading: false,
+        playlist: playlist,
+        currentIndex: startIndex,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to set playlist: ${e.toString()}',
+      );
+    }
   }
 
-  Future<void> resumeSong() async {
-    await _audioPlayerService.resume();
-  }
-
-  Future<void> stopSong() async {
-    await _audioPlayerService.stop();
-  }
-
-  Future<void> seek(Duration position) async {
-    await _audioPlayerService.seek(position);
-  }
-
-  /// Set playlist for auto-continue functionality
-  void setPlaylist(List<Song> playlist, {int startIndex = 0}) {
-    _playlist = playlist;
-    _currentIndex = startIndex;
-    _audioPlayerService.setPlaylist(playlist, startIndex: startIndex);
-    notifyListeners();
-  }
-
-  /// Play next song in playlist
+  // Play next song in playlist
   Future<void> playNext() async {
-    await _audioPlayerService.playNext();
+    if (state.playlist.isEmpty || state.currentIndex < 0) return;
+
+    try {
+      await _audioService.playNext();
+      final nextIndex = (state.currentIndex + 1) % state.playlist.length;
+      state = state.copyWith(currentIndex: nextIndex);
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to play next: ${e.toString()}');
+    }
   }
 
-  /// Play previous song in playlist
+  // Play previous song in playlist
   Future<void> playPrevious() async {
-    await _audioPlayerService.playPrevious();
+    if (state.playlist.isEmpty || state.currentIndex < 0) return;
+
+    try {
+      await _audioService.playPrevious();
+      final prevIndex = state.currentIndex > 0
+          ? state.currentIndex - 1
+          : state.playlist.length - 1;
+      state = state.copyWith(currentIndex: prevIndex);
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to play previous: ${e.toString()}');
+    }
   }
 
-  /// Set auto-continue mode
-  void setAutoContinue(bool enabled) {
-    _autoContinue = enabled;
-    _audioPlayerService.setAutoContinue(enabled);
-    notifyListeners();
+  // Play song at specific index
+  Future<void> playAtIndex(int index) async {
+    if (state.playlist.isEmpty || index < 0 || index >= state.playlist.length)
+      return;
+
+    try {
+      await _audioService.playAtIndex(index);
+      state = state.copyWith(currentIndex: index);
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to play at index: ${e.toString()}');
+    }
+  }
+
+  // Pause playback
+  Future<void> pause() async {
+    try {
+      await _audioService.pause();
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to pause: ${e.toString()}');
+    }
+  }
+
+  // Resume playback
+  Future<void> resume() async {
+    try {
+      await _audioService.resume();
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to resume: ${e.toString()}');
+    }
+  }
+
+  // Stop playback
+  Future<void> stop() async {
+    try {
+      await _audioService.stop();
+      state = const AudioState();
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to stop: ${e.toString()}');
+    }
+  }
+
+  // Seek to position
+  Future<void> seek(Duration position) async {
+    try {
+      await _audioService.seek(position);
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to seek: ${e.toString()}');
+    }
+  }
+
+  // Set volume (0.0 to 1.0)
+  Future<void> setVolume(double volume) async {
+    try {
+      await _audioService.setVolume(volume);
+      state = state.copyWith(volume: volume);
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to set volume: ${e.toString()}');
+    }
+  }
+
+  // Set playback speed
+  Future<void> setPlaybackSpeed(double speed) async {
+    try {
+      await _audioService.setRate(speed);
+      state = state.copyWith(playbackSpeed: speed);
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to set speed: ${e.toString()}');
+    }
+  }
+
+  // Clear error
+  void clearError() {
+    state = state.copyWith(error: null);
   }
 
   @override
   void dispose() {
-    _audioPlayerService
-        .dispose(); // Dispose the service when notifier is no longer needed
+    _currentSongSubscription?.cancel();
+    _isPlayingSubscription?.cancel();
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
+    _audioService.dispose();
     super.dispose();
   }
 }

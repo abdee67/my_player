@@ -29,10 +29,23 @@ dependencies:
   scrollable_positioned_list: ^0.3.8
   flutter_riverpod: ^2.6.1
   equatable: ^2.0.7
+  custom_refresh_indicator: ^4.0.1
+  audio_service: ^0.18.18
+  flutter_launcher_icons: ^0.14.4
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+
+# --- Flutter Launcher Icons Configuration ---
+flutter_launcher_icons:
+  android: truey
+  ios: true
+  image_path: "assets/default_album_art.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "assets/default_album_art.png"
+  adaptive_icon_foreground: "assets/default_album_art.png"
+  android_foreground_mode: "auto"
 
 flutter:
   uses-material-design: true

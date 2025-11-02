@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:my_player/core/media_library/presentation/widgets/library_header.dart';
 import 'package:my_player/features/home/presentation/widgets/bottom_nav.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:my_player/core/media_library/presentation/notifiers/music_library_notifier.dart';
+import 'package:my_player/provider.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
@@ -20,27 +20,25 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _initializeApp() async {
-    final musicLibraryNotifier =
-        Provider.of<MusicLibraryNotifier>(context, listen: false);
-
     // Give a short delay for splash screen visibility (optional)
     await Future.delayed(const Duration(seconds: 1));
 
-    await musicLibraryNotifier
+    await ref
+        .read(musicLibraryProvider.notifier)
         .loadSongs(); // This also handles permission requests
 
-    if (mounted) {
-      if (musicLibraryNotifier.errorMessage != null) {
-        // Handle permission denial or loading error
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(musicLibraryNotifier.errorMessage!)),
-        );
-        // You might want to provide an option to retry or go to settings here
-      }
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const BottomNav()),
+    if (!mounted) return;
+
+    if (ref.read(musicLibraryProvider).error != null) {
+      // Handle permission denial or loading error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ref.read(musicLibraryProvider).error!)),
       );
+      // You might want to provide an option to retry or go to settings here
     }
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const BottomNav()),
+    );
   }
 
   @override

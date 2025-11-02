@@ -1,112 +1,61 @@
-import 'package:flutter/material.dart';
+// lib/core/media_library/presentation/notifiers/music_library_notifier.dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:my_player/core/media_library/data/music_library_service.dart';
+import 'package:my_player/core/media_library/domain/entities/music_library_state.dart';
 import 'package:my_player/core/media_library/domain/entities/song.dart';
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 
-/// Notifier for managing and exposing the local music library data.
-class MusicLibraryNotifier extends ChangeNotifier {
-  /// Smart refresh: only add new songs, keep existing cached ones
-  Future<void> smartRefresh() async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-    try {
-      // Load cached songs
-      final prefs = await SharedPreferences.getInstance();
-      final cached = prefs.getString(_cacheKey);
-      List<Song> cachedSongs = [];
-      if (cached != null) {
-        final List<dynamic> decoded = jsonDecode(cached);
-        cachedSongs = decoded.map((e) => Song.fromJson(e)).toList();
-      }
-
-      // Get latest songs from device
-      bool permissionGranted =
-          await _musicLibraryService.requestStoragePermissions();
-      if (!permissionGranted) {
-        _errorMessage = "Permission denied to access local music.";
-        _isLoading = false;
-        notifyListeners();
-        return;
-      }
-      final deviceSongs = await _musicLibraryService.getSongs();
-
-      // Merge: keep all cached, add only new ones
-      final cachedIds = cachedSongs.map((s) => s.id).toSet();
-      final newSongs =
-          deviceSongs.where((s) => !cachedIds.contains(s.id)).toList();
-      final merged = [...cachedSongs, ...newSongs];
-
-      _songs = merged;
-      // Update cache
-      final toCache = jsonEncode(_songs.map((s) => s.toJson()).toList());
-      await prefs.setString(_cacheKey, toCache);
-    } catch (e) {
-      _errorMessage = "Failed to smart refresh: $e";
-      print("Error in smartRefresh: $e");
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  static const String _cacheKey = 'music_list_cache_v1';
+class MusicLibraryNotifier extends StateNotifier<MusicLibraryState> {
   final MusicLibraryService _musicLibraryService;
 
-  List<Song> _songs = [];
-  bool _isLoading = false;
-  String? _errorMessage;
+  MusicLibraryNotifier(this._musicLibraryService) : super(const MusicLibraryState());
 
-  MusicLibraryNotifier(this._musicLibraryService);
-
-  List<Song> get songs => _songs;
-  bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
-
-  Future<void> loadSongs({bool forceRefresh = false}) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
+  Future<void> loadSongs() async {
+    state = state.copyWith(isLoading: true, error: null);
+    
     try {
-      if (!forceRefresh) {
-        // Try to load from cache first
-        final prefs = await SharedPreferences.getInstance();
-        final cached = prefs.getString(_cacheKey);
-        if (cached != null) {
-          final List<dynamic> decoded = jsonDecode(cached);
-          _songs = decoded.map((e) => Song.fromJson(e)).toList();
-          _isLoading = false;
-          notifyListeners();
-          return;
-        }
-      }
-
-      // If no cache or forceRefresh, load from device
-      bool permissionGranted =
-          await _musicLibraryService.requestStoragePermissions();
-      if (permissionGranted) {
-        _songs = await _musicLibraryService.getSongs();
-        // Save to cache (without albumArt for performance)
-        final prefs = await SharedPreferences.getInstance();
-        final toCache = jsonEncode(_songs.map((s) => s.toJson()).toList());
-        await prefs.setString(_cacheKey, toCache);
-      } else {
-        _errorMessage = "Permission denied to access local music.";
-      }
+      final songs = await _musicLibraryService.getSongs();
+      state = state.copyWith(
+        songs: songs,
+        filteredSongs: songs,
+        isLoading: false,
+      );
     } catch (e) {
-      _errorMessage = "Failed to load songs: $e";
-      print("Error in MusicLibraryNotifier: $e");
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to load songs: ${e.toString()}',
+      );
     }
   }
 
-  /// Call this to clear the cache (e.g. for a manual refresh)
-  Future<void> clearCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_cacheKey);
+  void searchSongs(String query) {
+    if (query.isEmpty) {
+      state = state.copyWith(
+        filteredSongs: state.songs,
+        searchQuery: query,
+      );
+      return;
+    }
+
+    final filtered = state.songs.where((song) {
+      return song.title.toLowerCase().contains(query.toLowerCase()) ||
+             song.artist.toLowerCase().contains(query.toLowerCase()) ||
+             song.album.toLowerCase().contains(query.toLowerCase());
+    }).toList();
+
+    state = state.copyWith(
+      filteredSongs: filtered,
+      searchQuery: query,
+    );
+  }
+
+  void clearError() {
+    state = state.copyWith(error: null);
+  }
+
+  void clearSearch() {
+    state = state.copyWith(
+      filteredSongs: state.songs,
+      searchQuery: '',
+    );
   }
 }

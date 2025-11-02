@@ -8,9 +8,6 @@ class NowPlayingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final player =
-        Provider.of<AudioPlayerNotifier>(context, listen: false).player;
-
-    return PlayerScreen(audioPlayer: player, lyrics: []);
+    return PlayerScreen();
   }
 }
