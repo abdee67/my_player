@@ -9,13 +9,8 @@ import 'features/home/presentation/screens/splash_screen.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // Initialize media_kit. This is crucial.
-  MediaKit.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();
   // clearAllSharedPreferences();
-  // Lock orientation to portrait only
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
   runApp(const ProviderScope(child: MyApp()));
 }
 

@@ -10,7 +10,7 @@ class AudioPlayerService {
   int _currentIndex = -1;
   bool _autoContinue = true;
   bool _isDisposed = false;
-  bool _autoPlay = true;
+  final bool _autoPlay = true;
 
   // Streams controllers with error handling
   final _currentSongController = StreamController<Song?>.broadcast();
@@ -39,6 +39,7 @@ class AudioPlayerService {
 
   void _initPlayer() {
     try {
+      MediaKit.ensureInitialized();
       player = Player();
       _initListeners();
     } catch (e) {
@@ -179,11 +180,22 @@ class AudioPlayerService {
           _currentIndex = index;
         }
       }
-
-      await player.open(Media(song.data));
+      final fileUri = _getFileUri(song.filePath);
+      await player.open(Media(fileUri));
       await player.play();
     } catch (e) {
       _handleError(PlaybackException('Failed to play song ${song.title}: $e'));
+    }
+  }
+
+  String _getFileUri(String filePath) {
+    // On Windows, we need to handle different path formats
+    if (filePath.startsWith('file://')) {
+      return filePath;
+    } else {
+      // Convert Windows path to file URI
+      final path = filePath.replaceAll(r'\', '/');
+      return 'file://$path';
     }
   }
 

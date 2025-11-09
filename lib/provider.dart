@@ -23,7 +23,8 @@ final musicLibraryServiceProvider = Provider<MusicLibraryService>(
 );
 
 // State Notifier Providers
-final audioPlayerProvider = StateNotifierProvider<AudioPlayerNotifier, AudioState>(
+final audioPlayerProvider =
+    StateNotifierProvider<AudioPlayerNotifier, AudioState>(
   (ref) => AudioPlayerNotifier(ref.read(audioServiceProvider)),
 );
 
@@ -31,10 +32,10 @@ final lyricsProvider = StateNotifierProvider<LyricsNotifier, LyricsState>(
   (ref) => LyricsNotifier(ref.read(lyricsServiceProvider)),
 );
 
-final musicLibraryProvider = StateNotifierProvider<MusicLibraryNotifier, MusicLibraryState>(
+final musicLibraryProvider =
+    StateNotifierProvider<MusicLibraryNotifier, MusicLibraryState>(
   (ref) => MusicLibraryNotifier(ref.read(musicLibraryServiceProvider)),
 );
-
 // Stream Providers for real-time updates
 final currentPositionProvider = StreamProvider<Duration>((ref) {
   return ref.watch(audioServiceProvider).currentPositionStream;
@@ -48,7 +49,7 @@ final isPlayingProvider = StreamProvider<bool>((ref) {
 final playerUIStateProvider = Provider<PlayerUIState>((ref) {
   final audioState = ref.watch(audioPlayerProvider);
   final lyricsState = ref.watch(lyricsProvider);
-  
+
   return PlayerUIState(
     audioState: audioState,
     lyricsState: lyricsState,

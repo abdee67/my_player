@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:my_player/core/audio/presentation/notifiers/audio_player_notifier.dart';
 import 'package:my_player/features/albums/presentation/screens/albums_screen.dart';
 import 'package:my_player/features/home/presentation/screens/all_musics.dart';
 import 'package:my_player/features/internal_storage/presentation/screens/internal_storage_screen.dart';
@@ -7,7 +6,6 @@ import 'package:my_player/features/now_playing/presentation/screens/player_scree
 import 'package:my_player/features/search/presentation/screens/search_screen.dart';
 import 'package:my_player/features/settings/presentation/screens/settings_screen.dart';
 // Removed unused import: just_audio
-import 'package:provider/provider.dart';
 
 class BottomNav extends StatefulWidget {
   const BottomNav({super.key});

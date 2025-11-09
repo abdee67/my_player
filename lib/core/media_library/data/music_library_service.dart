@@ -1,127 +1,155 @@
-import 'dart:typed_data';
-import 'package:on_audio_query/on_audio_query.dart';
-import 'package:permission_handler/permission_handler.dart';
-
+// lib/core/media_library/data/windows_music_library_service.dart
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as path;
 import 'package:my_player/core/media_library/domain/entities/song.dart';
 
-/// Service to query local music files and handle permissions.
 class MusicLibraryService {
-  final OnAudioQuery _audioQuery = OnAudioQuery();
+  static final List<String> _supportedFormats = [
+    '.mp3',
+    '.wav',
+    '.ogg',
+    '.m4a',
+    '.aac',
+    '.flac',
+    '.wma'
+  ];
 
-  /// Requests necessary storage permissions.
-  /// Returns true if permissions are granted, false otherwise.
-  Future<bool> requestStoragePermissions() async {
-    try {
-      // Check current permission status
-      var audioStatus = await Permission.audio.status;
-      var storageStatus = await Permission.storage.status;
-
-      print("Current audio permission status: $audioStatus");
-      print("Current storage permission status: $storageStatus");
-
-      // For Android 13+ (API 33+), use audio permission
-      if (audioStatus.isDenied) {
-        print("Requesting audio permission...");
-        audioStatus = await Permission.audio.request();
-        print("Audio permission request result: $audioStatus");
-      }
-
-      // For Android < 13, also request storage permission
-      if (storageStatus.isDenied) {
-        print("Requesting storage permission...");
-        storageStatus = await Permission.storage.request();
-        print("Storage permission request result: $storageStatus");
-      }
-
-      // Check if we have the necessary permissions
-      bool hasAudioPermission = audioStatus.isGranted;
-      bool hasStoragePermission =
-          storageStatus.isGranted || storageStatus.isLimited;
-
-      print("Has audio permission: $hasAudioPermission");
-      print("Has storage permission: $hasStoragePermission");
-
-      // For Android 13+, we only need audio permission
-      // For older versions, we need storage permission
-      if (hasAudioPermission || hasStoragePermission) {
-        print("Required permissions granted.");
-        return true;
-      } else {
-        print("Required permissions denied.");
-        return false;
-      }
-    } catch (e) {
-      print("Error requesting permissions: $e");
-      return false;
-    }
-  }
-
-  /// Fetches all local music songs.
+  /// Let user select directory and scan for music files
   Future<List<Song>> getSongs() async {
     try {
-      // First check if we have permissions
-      bool hasPermission = await requestStoragePermissions();
+      print("🪟 Windows: No permissions needed, opening directory picker...");
 
-      if (!hasPermission) {
-        print("Permission not granted to query audios.");
+      final String? selectedDirectory =
+          await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Select Music Folder',
+      );
+
+      if (selectedDirectory == null) {
+        print("❌ User cancelled directory selection");
         return [];
       }
 
-      // Use on_audio_query's built-in permission check as backup
-      bool onAudioQueryPermission = await _audioQuery.checkAndRequest(
-        retryRequest: true,
-      );
+      print("📁 Scanning directory: $selectedDirectory");
+      final songs = await _scanDirectory(Directory(selectedDirectory));
+      print("✅ Found ${songs.length} songs");
 
-      if (!onAudioQueryPermission) {
-        print("on_audio_query permission check failed.");
-        return [];
-      }
-
-      print("Querying songs from device...");
-      List<SongModel> audioList = await _audioQuery.querySongs(
-        sortType: null,
-        orderType: OrderType.ASC_OR_SMALLER,
-        uriType: UriType.EXTERNAL,
-        ignoreCase: true,
-      );
-
-      print("Found ${audioList.length} songs");
-
-      List<Song> songs = [];
-      for (var audio in audioList) {
-        try {
-          // Get album artwork (can be slow for many songs, consider lazy loading)
-          Uint8List? artwork = await _audioQuery.queryArtwork(
-            audio.id,
-            ArtworkType.AUDIO,
-            size: 200, // Adjust size as needed
-            quality: 50, // Adjust quality
-          );
-
-          songs.add(
-            Song.fromAudioQuery({
-              'id': audio.id,
-              'title': audio.title,
-              'artist': audio.artist,
-              'album': audio.album,
-              'data': audio.data,
-              'duration': audio.duration,
-              'artwork': artwork,
-            }),
-          );
-        } catch (e) {
-          print("Error processing song ${audio.title}: $e");
-          // Continue with other songs even if one fails
-        }
-      }
-
-      print("Successfully processed ${songs.length} songs");
       return songs;
     } catch (e) {
-      print("Error fetching songs: $e");
+      print('🚨 Error scanning music files: $e');
       return [];
     }
   }
 
-  // TODO: Add methods for getAlbums(), getArtists() if needed for LibraryScreen tabs
+  Future<List<Song>> _scanDirectory(Directory directory) async {
+    final List<Song> songs = [];
+
+    try {
+      if (await directory.exists()) {
+        await for (final entity in directory.list(recursive: true)) {
+          if (entity is File) {
+            if (_isMusicFile(entity.path)) {
+              final song = await _createSongFromFile(entity);
+              if (song != null) {
+                songs.add(song);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error scanning directory ${directory.path}: $e');
+    }
+
+    return songs;
+  }
+
+  bool _isMusicFile(String filePath) {
+    final extension = path.extension(filePath).toLowerCase();
+    return _supportedFormats.contains(extension);
+  }
+
+  Future<Song?> _createSongFromFile(File file) async {
+    try {
+      final stat = await file.stat();
+      final fileName = path.basenameWithoutExtension(file.path);
+
+      // Split filename to extract title and artist (common pattern: "Artist - Title")
+      String title = fileName;
+      String artist = 'Unknown Artist';
+      String album = 'Unknown Album';
+
+      if (fileName.contains(' - ')) {
+        final parts = fileName.split(' - ');
+        if (parts.length >= 2) {
+          artist = parts[0].trim();
+          title = parts[1].trim();
+        }
+      }
+
+      // For Windows, we'll use a simple duration estimation
+      // In a real app, you'd use a metadata reader
+      final duration = await _estimateDuration(file);
+
+      return Song(
+        id: file.path, // Use file path as ID on Windows
+        title: title,
+        artist: artist,
+        album: album,
+        filePath: file.path,
+        duration: duration,
+        fileSize: stat.size,
+      );
+    } catch (e) {
+      print('Error creating song from file ${file.path}: $e');
+      return null;
+    }
+  }
+
+  Future<Duration> _estimateDuration(File file) async {
+    // Simple estimation: assume 1MB ≈ 1 minute for MP3
+    // This is very rough - in production, use a proper metadata library
+    try {
+      final stat = await file.stat();
+      final minutes = stat.size / (1024 * 1024); // 1MB per minute
+      return Duration(minutes: minutes.toInt().clamp(1, 60));
+    } catch (e) {
+      return const Duration(minutes: 3); // Default fallback
+    }
+  }
+
+  /// Get common music directories on Windows
+  Future<List<String>> getCommonMusicDirectories() async {
+    final List<String> directories = [];
+
+    try {
+      // User's Music directory
+      final userMusic = Platform.environment['USERPROFILE'];
+      if (userMusic != null) {
+        final musicDir = path.join(userMusic, 'Music');
+        if (await Directory(musicDir).exists()) {
+          directories.add(musicDir);
+        }
+      }
+
+      // Common locations
+      final commonLocations = [
+        r'C:\Users\Public\Music',
+        r'C:\Music',
+        r'C:\Users\Public\Documents\Music',
+        r'C:\Users\Public\Documents\My Music',
+        r'C:\Users\Public\Documents\My Music\Music',
+      ];
+
+      for (final location in commonLocations) {
+        if (await Directory(location).exists()) {
+          directories.add(location);
+        }
+      }
+    } catch (e) {
+      print('Error getting common music directories: $e');
+    }
+
+    return directories;
+  }
 }

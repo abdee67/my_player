@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:my_player/features/home/presentation/widgets/bottom_nav.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:my_player/core/media_library/presentation/notifiers/music_library_notifier.dart';
 import 'package:my_player/provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {

@@ -212,7 +212,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                             style: const TextStyle(
                                                 color: Colors.white70)),
                                         const SizedBox(height: 12),
-                                        Text('File: ${song.data}',
+                                        Text('File: ${song.filePath}',
                                             style: const TextStyle(
                                                 color: Colors.white38,
                                                 fontSize: 12)),
