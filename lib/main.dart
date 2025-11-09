@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:media_kit/media_kit.dart'; // Import media_kit
+// Import media_kit
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'features/home/presentation/screens/splash_screen.dart';
