@@ -290,8 +290,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 // Set playlist without autoplay (so UI can display selection but no sound starts)
                                 await audioNotifier.setPlaylist(
                                     libraryState.songs,
-                                    startIndex: startIndex,
-                                    autoPlay: false);
+                                    startIndex: startIndex);
 
 // Fetch lyrics (await API response)
                                 await ref

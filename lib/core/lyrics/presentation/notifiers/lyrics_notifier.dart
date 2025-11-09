@@ -1,37 +1,9 @@
 // lib/core/lyrics/presentation/notifiers/lyrics_notifier.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:my_player/core/lyrics/data/lyrics_service.dart';
-import 'package:my_player/core/lyrics/domain/entities/lyricLine.dart';
+import 'package:my_player/core/lyrics/domain/entities/lyrics_state.dart';
 import 'package:my_player/core/media_library/domain/entities/song.dart';
 import 'package:my_player/provider.dart';
-
-class LyricsState {
-  final List<LyricLine> lyrics;
-  final bool isLoading;
-  final String? error;
-  final bool hasTimestamps; // Whether lyrics have proper timestamps
-
-  const LyricsState({
-    this.lyrics = const [],
-    this.isLoading = false,
-    this.error,
-    this.hasTimestamps = false,
-  });
-
-  LyricsState copyWith({
-    List<LyricLine>? lyrics,
-    bool? isLoading,
-    String? error,
-    bool? hasTimestamps,
-  }) {
-    return LyricsState(
-      lyrics: lyrics ?? this.lyrics,
-      isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
-      hasTimestamps: hasTimestamps ?? this.hasTimestamps,
-    );
-  }
-}
 
 class LyricsNotifier extends StateNotifier<LyricsState> {
   final LyricsService _lyricsService;

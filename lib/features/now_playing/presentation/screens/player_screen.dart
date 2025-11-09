@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:my_player/core/audio/domain/entities/audio_state.dart';
+import 'package:my_player/core/lyrics/domain/entities/lyrics_state.dart';
 import 'package:my_player/core/lyrics/presentation/notifiers/lyrics_notifier.dart'
     hide lyricsProvider;
 import 'package:my_player/core/lyrics/presentation/widgets/lyrics_list.dart';

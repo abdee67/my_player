@@ -4,6 +4,7 @@ import 'package:my_player/core/audio/data/audio_player_service.dart';
 import 'package:my_player/core/audio/domain/entities/audio_state.dart';
 import 'package:my_player/core/audio/presentation/notifiers/audio_player_notifier.dart';
 import 'package:my_player/core/lyrics/data/lyrics_service.dart';
+import 'package:my_player/core/lyrics/domain/entities/lyrics_state.dart';
 import 'package:my_player/core/lyrics/presentation/notifiers/lyrics_notifier.dart';
 import 'package:my_player/core/media_library/data/music_library_service.dart';
 import 'package:my_player/core/media_library/domain/entities/music_library_state.dart';

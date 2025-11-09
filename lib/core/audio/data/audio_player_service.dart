@@ -10,7 +10,6 @@ class AudioPlayerService {
   int _currentIndex = -1;
   bool _autoContinue = true;
   bool _isDisposed = false;
-  final bool _autoPlay = true;
 
   // Streams controllers with error handling
   final _currentSongController = StreamController<Song?>.broadcast();
@@ -112,16 +111,13 @@ class AudioPlayerService {
   }
 
   /// Set playlist for auto-continue functionality
-  void setPlaylist(List<Song> playlist,
-      {int startIndex = 0, bool autoPlay = true}) {
+  void setPlaylist(List<Song> playlist, {int startIndex = 0}) {
     _playlist = playlist;
     if (playlist.isEmpty) return;
     _playlist = List<Song>.from(playlist);
     _currentIndex = startIndex.clamp(0, _playlist.length - 1);
     _playlistController.add(_playlist);
-    if (autoPlay) {
-      play(_playlist[_currentIndex]);
-    }
+    play(_playlist[_currentIndex]);
   }
 
   /// Get current playlist

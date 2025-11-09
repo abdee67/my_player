@@ -57,12 +57,10 @@ class AudioPlayerNotifier extends StateNotifier<AudioState> {
   }
 
   // Set and play a playlist
-  Future<void> setPlaylist(List<Song> playlist,
-      {int startIndex = 0, bool autoPlay = true}) async {
+  Future<void> setPlaylist(List<Song> playlist, {int startIndex = 0}) async {
     try {
       state = state.copyWith(isLoading: true, error: null);
-      _audioService.setPlaylist(playlist,
-          startIndex: startIndex, autoPlay: autoPlay);
+      _audioService.setPlaylist(playlist, startIndex: startIndex);
       state = state.copyWith(
         isLoading: false,
         playlist: playlist,
