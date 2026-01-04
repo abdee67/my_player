@@ -2,7 +2,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:my_player/core/media_library/data/music_library_service.dart';
 import 'package:my_player/core/media_library/domain/entities/music_library_state.dart';
-import 'package:my_player/core/media_library/domain/entities/song.dart';
 
 class MusicLibraryNotifier extends StateNotifier<MusicLibraryState> {
   final MusicLibraryService _musicLibraryService;

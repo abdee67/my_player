@@ -1,5 +1,5 @@
-package com.example.my_player
+package com.abd33.my_player
 
-import io.flutter.embedding.android.FlutterActivity
+import com.ryanheise.audioservice.AudioServiceActivity
 
-class MainActivity : FlutterActivity()
+class MainActivity : AudioServiceActivity()

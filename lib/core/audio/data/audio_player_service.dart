@@ -1,16 +1,24 @@
 import 'dart:async';
-import 'package:media_kit/media_kit.dart';
+
+import 'package:audio_service/audio_service.dart';
+import 'package:my_player/core/audio/background/audio_handler.dart';
 import 'package:my_player/core/media_library/domain/entities/song.dart';
 import 'package:my_player/shared/exceptions/exceptions.dart';
 
-/// Service to manage audio playback using media_kit with proper error handling
+/// Service that coordinates app state with [AudioHandler] playback.
 class AudioPlayerService {
-  late final Player player;
+  AudioPlayerService(this._audioHandler)
+      : _playerHandler = _audioHandler as PlayerAudioHandler {
+    _attachHandlerStreams();
+  }
+
+  final AudioHandler _audioHandler;
+  final PlayerAudioHandler _playerHandler;
+
   List<Song> _playlist = [];
   int _currentIndex = -1;
   bool _autoContinue = true;
   bool _isDisposed = false;
-  bool _autoPlay = true;
 
   // Streams controllers with error handling
   final _currentSongController = StreamController<Song?>.broadcast();
@@ -19,6 +27,11 @@ class AudioPlayerService {
   final _totalDurationController = StreamController<Duration>.broadcast();
   final _playlistController = StreamController<List<Song>>.broadcast();
   final _errorController = StreamController<PlayerException>.broadcast();
+
+  StreamSubscription<PlaybackState>? _playbackSub;
+  StreamSubscription<MediaItem?>? _mediaItemSub;
+  StreamSubscription<List<MediaItem>>? _queueSub;
+  StreamSubscription<Duration>? _positionTicker;
 
   Song? _currentSong;
   bool _isPlaying = false;
@@ -33,65 +46,221 @@ class AudioPlayerService {
   Stream<List<Song>> get playlistStream => _playlistController.stream;
   Stream<PlayerException> get errorStream => _errorController.stream;
 
-  AudioPlayerService() {
-    _initPlayer();
-  }
-
-  void _initPlayer() {
-    try {
-      player = Player();
-      _initListeners();
-    } catch (e) {
-      _handleError(PlayerInitializationException(
-        'Failed to initialize player: ${e.toString()}',
-      ));
-    }
-  }
-
-  void _initListeners() {
-    player.stream.playing.listen((isPlaying) {
-      _isPlaying = isPlaying;
+  void _attachHandlerStreams() {
+    _playbackSub = _audioHandler.playbackState.listen((state) {
+      _isPlaying = state.playing;
       if (!_isPlayingController.isClosed) {
-        _isPlayingController.add(isPlaying);
+        _isPlayingController.add(state.playing);
       }
-    }, onError: (error) {
-      _handleError(
-          PlaybackStateException('Playing state error: ${error.toString()}'));
+      _currentPosition = state.updatePosition;
+      if (!_currentPositionController.isClosed) {
+        _currentPositionController.add(state.updatePosition);
+      }
     });
 
-    player.stream.position.listen((position) {
+    _mediaItemSub = _audioHandler.mediaItem.listen((item) {
+      if (item == null) {
+        _currentSong = null;
+        if (!_currentSongController.isClosed) {
+          _currentSongController.add(null);
+        }
+        return;
+      }
+      final song = _playlist.firstWhere(
+        (s) => s.id == item.id,
+        orElse: () => _songFromMediaItem(item),
+      );
+      _currentSong = song;
+      if (!_currentSongController.isClosed) {
+        _currentSongController.add(song);
+      }
+      if (item.duration != null && !_totalDurationController.isClosed) {
+        _totalDuration = item.duration!;
+        _totalDurationController.add(item.duration!);
+      }
+    });
+
+    _queueSub = _audioHandler.queue.listen((mediaItems) {
+      if (mediaItems.isEmpty) {
+        _playlist = [];
+        _playlistController.add([]);
+        _currentIndex = -1;
+        return;
+      }
+
+      final mapped = mediaItems
+          .map((item) => _playlist.firstWhere(
+                (song) => song.id == item.id,
+                orElse: () => _songFromMediaItem(item),
+              ))
+          .toList(growable: false);
+      _playlist = mapped;
+      _playlistController.add(mapped);
+    });
+
+    _positionTicker = AudioService.position.listen((position) {
       _currentPosition = position;
       if (!_currentPositionController.isClosed) {
         _currentPositionController.add(position);
       }
-    }, onError: (error) {
-      _handleError(PositionTrackingException(
-          'Position state error: ${error.toString()}'));
     });
+  }
 
-    player.stream.duration.listen((duration) {
-      _totalDuration = duration;
-      if (!_totalDurationController.isClosed) {
-        _totalDurationController.add(duration);
+  Future<void> setPlaylist(
+    List<Song> playlist, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) async {
+    if (_isDisposed) return;
+    if (playlist.isEmpty) {
+      await stop();
+      return;
+    }
+
+    _playlist = List<Song>.from(playlist);
+    _currentIndex = startIndex.clamp(0, playlist.length - 1);
+
+    try {
+      await _playerHandler.setPlaylist(
+        playlist,
+        startIndex: _currentIndex,
+        autoPlay: autoPlay,
+      );
+      if (!_playlistController.isClosed) {
+        _playlistController.add(_playlist);
       }
-    }, onError: (error) {
-      _handleError(DurationTrackingException(
-          'Duration state error: ${error.toString()}'));
-    });
+    } catch (e) {
+      _handleError(PlaybackException('Failed to set playlist: $e'));
+    }
+  }
 
-    player.stream.error.listen((error) {
-      _handleError(PlaybackException('MediaKit Error: $error'));
-    });
+  List<Song> get playlist => List<Song>.from(_playlist);
 
-    player.stream.completed.listen((completed) {
-      if (completed) {
-        print('Playback completed for $_currentSong');
-        _handleSongCompletion();
-      }
-    }, onError: (error) {
-      _handleError(PlaybackCompletionException(
-          'Completion tracking error: ${error.toString()}'));
-    });
+  int get currentIndex => _currentIndex;
+
+  void setAutoContinue(bool enabled) {
+    _autoContinue = enabled;
+  }
+
+  bool get autoContinue => _autoContinue;
+
+  Future<void> playNext() async {
+    if (_isDisposed) return;
+    if (_playlist.isEmpty) return;
+    try {
+      await _audioHandler.skipToNext();
+      _currentIndex = (_currentIndex + 1) % _playlist.length;
+    } catch (e) {
+      _handleError(PlaybackException('Failed to skip to next: $e'));
+    }
+  }
+
+  Future<void> playPrevious() async {
+    if (_isDisposed) return;
+    if (_playlist.isEmpty) return;
+    try {
+      await _audioHandler.skipToPrevious();
+      _currentIndex =
+          _currentIndex > 0 ? _currentIndex - 1 : _playlist.length - 1;
+    } catch (e) {
+      _handleError(PlaybackException('Failed to skip to previous: $e'));
+    }
+  }
+
+  Future<void> playAtIndex(int index) async {
+    if (_isDisposed) return;
+    if (_playlist.isEmpty || index < 0 || index >= _playlist.length) return;
+    try {
+      await _audioHandler.skipToQueueItem(index);
+      _currentIndex = index;
+    } catch (e) {
+      _handleError(PlaybackException('Failed to play index $index: $e'));
+    }
+  }
+
+  Future<void> play(Song song) async {
+    if (_isDisposed) return;
+    try {
+      await _playerHandler.setSingleSong(song);
+      _currentSong = song;
+      _currentIndex = 0;
+    } catch (e) {
+      _handleError(PlaybackException('Failed to play song ${song.title}: $e'));
+    }
+  }
+
+  Future<void> pause() async {
+    if (_isDisposed) return;
+    await _audioHandler.pause();
+  }
+
+  Future<void> resume() async {
+    if (_isDisposed) return;
+    await _audioHandler.play();
+  }
+
+  Future<void> stop() async {
+    if (_isDisposed) return;
+    await _audioHandler.stop();
+    _resetState();
+  }
+
+  Future<void> seek(Duration position) async {
+    if (_isDisposed) return;
+    await _audioHandler.seek(position);
+  }
+
+  Future<void> setVolume(double volume) async {
+    if (_isDisposed) return;
+    await _playerHandler.setPlayerVolume(volume.clamp(0.0, 1.0));
+  }
+
+  Future<void> setRate(double rate) async {
+    if (_isDisposed) return;
+    await _playerHandler.setSpeed(rate.clamp(0.25, 2.0));
+  }
+
+  Future<void> setShuffle(bool shuffle) async {
+    if (_isDisposed) return;
+    final mode =
+        shuffle ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none;
+    await _audioHandler.setShuffleMode(mode);
+  }
+
+  Future<void> setPlaylistMode(AudioServiceRepeatMode mode) async {
+    if (_isDisposed) return;
+    await _audioHandler.setRepeatMode(mode);
+  }
+
+  void _resetState() {
+    _currentSong = null;
+    _playlist = [];
+    _currentIndex = -1;
+    _isPlayingController.add(false);
+    _currentSongController.add(null);
+    _currentPositionController.add(Duration.zero);
+    _totalDurationController.add(Duration.zero);
+    _playlistController.add([]);
+  }
+
+  Song? get currentSong => _currentSong;
+  bool get isPlaying => _isPlaying;
+  Duration get currentPosition => _currentPosition;
+  Duration get totalDuration => _totalDuration;
+
+  Future<void> dispose() async {
+    _isDisposed = true;
+    await _playbackSub?.cancel();
+    await _mediaItemSub?.cancel();
+    await _queueSub?.cancel();
+    await _positionTicker?.cancel();
+    await _playerHandler.dispose();
+    await _currentSongController.close();
+    await _isPlayingController.close();
+    await _currentPositionController.close();
+    await _totalDurationController.close();
+    await _playlistController.close();
+    await _errorController.close();
   }
 
   void _handleError(PlayerException exception) {
@@ -100,169 +269,17 @@ class AudioPlayerService {
     }
   }
 
-  /// Handle song completion - auto-continue to next song
-  void _handleSongCompletion() {
-    if (_autoContinue && _playlist.isNotEmpty && _currentIndex >= 0) {
-      final nextIndex = (_currentIndex + 1) % _playlist.length;
-      final nextSong = _playlist[nextIndex];
-      print('Auto-continuing to next song: ${nextSong.title}');
-      play(nextSong);
-    }
-  }
-
-  /// Set playlist for auto-continue functionality
-  void setPlaylist(List<Song> playlist,
-      {int startIndex = 0, bool autoPlay = true}) {
-    _playlist = playlist;
-    if (playlist.isEmpty) return;
-    _playlist = List<Song>.from(playlist);
-    _currentIndex = startIndex.clamp(0, _playlist.length - 1);
-    _playlistController.add(_playlist);
-    if (autoPlay) {
-      play(_playlist[_currentIndex]);
-    }
-  }
-
-  /// Get current playlist
-  List<Song> get playlist => List<Song>.from(_playlist);
-
-  /// Get current index in playlist
-  int get currentIndex => _currentIndex;
-
-  /// Set auto-continue mode
-  void setAutoContinue(bool enabled) {
-    _autoContinue = enabled;
-  }
-
-  /// Get auto-continue mode
-  bool get autoContinue => _autoContinue;
-
-  /// Play next song in playlist
-  Future<void> playNext() async {
-    if (_playlist.isEmpty || _currentIndex < 0) return;
-    final nextIndex = (_currentIndex + 1) % _playlist.length;
-    _currentIndex = nextIndex;
-    final nextSong = _playlist[nextIndex];
-    await play(nextSong);
-  }
-
-  /// Play previous song in playlist
-  Future<void> playPrevious() async {
-    if (_playlist.isEmpty || _currentIndex < 0) return;
-    final prevIndex =
-        _currentIndex > 0 ? _currentIndex - 1 : _playlist.length - 1;
-    _currentIndex = prevIndex;
-    final prevSong = _playlist[prevIndex];
-    await play(prevSong);
-  }
-
-  Future<void> playAtIndex(int index) async {
-    if (_playlist.isEmpty || index < 0 || index >= _playlist.length) return;
-    _currentIndex = index;
-    final song = _playlist[index];
-    await play(song);
-  }
-
-  /// Plays a given song from its local file path.
-  Future<void> play(Song song) async {
-    if (_isDisposed) return;
-    try {
-      _currentSong = song;
-      _currentSongController.add(song);
-      _totalDurationController
-          .add(song.duration); // Set total duration immediately
-
-      // Update current index if song is in playlist
-      if (_playlist.isNotEmpty) {
-        final index = _playlist.indexWhere((s) => s.id == song.id);
-        if (index >= 0) {
-          _currentIndex = index;
-        }
-      }
-
-      await player.open(Media(song.data));
-      await player.play();
-    } catch (e) {
-      _handleError(PlaybackException('Failed to play song ${song.title}: $e'));
-    }
-  }
-
-  Future<void> pause() async {
-    if (_isDisposed) return;
-    await player.pause();
-  }
-
-  Future<void> resume() async {
-    if (_isDisposed) return;
-    await player.play();
-  }
-
-  Future<void> stop() async {
-    if (_isDisposed) return;
-    await player.stop();
-    _resetState();
-  }
-
-  Future<void> seek(Duration position) async {
-    if (_isDisposed) return;
-    await player.seek(position);
-  }
-
-  Future<void> setVolume(double volume) async {
-    if (_isDisposed) return;
-    await player.setVolume(volume.clamp(0.0, 1.0));
-  }
-
-  Future<void> setRate(double rate) async {
-    if (_isDisposed) return;
-    await player.setRate(rate.clamp(0.25, 2.0));
-  }
-
-  Future<void> setShuffle(bool shuffle) async {
-    if (_isDisposed) return;
-    await player.setShuffle(shuffle);
-  }
-
-  Future<void> setPlaylistMode(PlaylistMode mode) async {
-    if (_isDisposed) return;
-    await player.setPlaylistMode(mode);
-  }
-
-  Future<void> setPitch(double pitch) async {
-    if (_isDisposed) return;
-    await player.setPitch(pitch.clamp(0.25, 2.0));
-  }
-
-  Future<void> setAudioDevice(AudioDevice device) async {
-    if (_isDisposed) return;
-    await player.setAudioDevice(device);
-  }
-
-  void _resetState() {
-    _currentSong = null;
-    _currentSongController.add(null);
-    _isPlayingController.add(false);
-    _currentPositionController.add(Duration.zero);
-    _totalDurationController.add(Duration.zero);
-    _playlistController.add([]);
-  }
-
-  // Getters for current state (for initial state or direct access)
-  Song? get currentSong => _currentSong;
-  bool get isPlaying => _isPlaying;
-  Duration get currentPosition => _currentPosition;
-  Duration get totalDuration => _totalDuration;
-
-  // Dispose method to release resources
-  Future<void> dispose() async {
-    _isDisposed = true;
-    await player.dispose();
-    // Close all stream controllers
-    await _currentSongController.close();
-    await _isPlayingController.close();
-    await _currentPositionController.close();
-    await _totalDurationController.close();
-    await _playlistController.close();
-    await _errorController.close();
+  static Song _songFromMediaItem(MediaItem item) {
+    final extras = item.extras ?? const {};
+    final path = extras['path'] as String? ?? '';
+    return Song(
+      id: item.id,
+      title: item.title,
+      artist: item.artist ?? 'Unknown Artist',
+      album: item.album ?? 'Unknown Album',
+      data: path,
+      duration: item.duration ?? Duration.zero,
+      albumArt: null,
+    );
   }
 }

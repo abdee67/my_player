@@ -1,4 +1,5 @@
 // lib/provider.dart
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:my_player/core/audio/data/audio_player_service.dart';
 import 'package:my_player/core/audio/domain/entities/audio_state.dart';
@@ -10,8 +11,17 @@ import 'package:my_player/core/media_library/domain/entities/music_library_state
 import 'package:my_player/core/media_library/presentation/notifiers/music_library_notifier.dart';
 
 // Service Providers
+final audioHandlerProvider = Provider<AudioHandler>((ref) {
+  throw UnimplementedError('audioHandlerProvider must be overridden in main.');
+});
+
 final audioServiceProvider = Provider<AudioPlayerService>(
-  (ref) => AudioPlayerService(),
+  (ref) {
+    final handler = ref.watch(audioHandlerProvider);
+    final service = AudioPlayerService(handler);
+    ref.onDispose(service.dispose);
+    return service;
+  },
 );
 
 final lyricsServiceProvider = Provider<LyricsService>(
@@ -23,7 +33,8 @@ final musicLibraryServiceProvider = Provider<MusicLibraryService>(
 );
 
 // State Notifier Providers
-final audioPlayerProvider = StateNotifierProvider<AudioPlayerNotifier, AudioState>(
+final audioPlayerProvider =
+    StateNotifierProvider<AudioPlayerNotifier, AudioState>(
   (ref) => AudioPlayerNotifier(ref.read(audioServiceProvider)),
 );
 
@@ -31,7 +42,8 @@ final lyricsProvider = StateNotifierProvider<LyricsNotifier, LyricsState>(
   (ref) => LyricsNotifier(ref.read(lyricsServiceProvider)),
 );
 
-final musicLibraryProvider = StateNotifierProvider<MusicLibraryNotifier, MusicLibraryState>(
+final musicLibraryProvider =
+    StateNotifierProvider<MusicLibraryNotifier, MusicLibraryState>(
   (ref) => MusicLibraryNotifier(ref.read(musicLibraryServiceProvider)),
 );
 
@@ -48,7 +60,7 @@ final isPlayingProvider = StreamProvider<bool>((ref) {
 final playerUIStateProvider = Provider<PlayerUIState>((ref) {
   final audioState = ref.watch(audioPlayerProvider);
   final lyricsState = ref.watch(lyricsProvider);
-  
+
   return PlayerUIState(
     audioState: audioState,
     lyricsState: lyricsState,

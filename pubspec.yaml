@@ -9,9 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  media_kit: ^1.2.0
-  media_kit_video: ^1.3.0
-  media_kit_libs_android_video: ^1.3.7
+  media_kit: ^1.2.1
   on_audio_query: ^2.9.0
   path_provider: ^2.1.5
   permission_handler: ^12.0.1
@@ -52,4 +50,3 @@ flutter:
 
   assets:
     - assets/default_album_art.png
-    - assets/Technician Report.pdf

@@ -106,8 +106,9 @@ class AudioPlayerNotifier extends StateNotifier<AudioState> {
 
   // Play song at specific index
   Future<void> playAtIndex(int index) async {
-    if (state.playlist.isEmpty || index < 0 || index >= state.playlist.length)
+    if (state.playlist.isEmpty || index < 0 || index >= state.playlist.length) {
       return;
+    }
 
     try {
       await _audioService.playAtIndex(index);

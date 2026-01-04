@@ -1,22 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:media_kit/media_kit.dart'; // Import media_kit
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/audio/background/audio_handler.dart';
 import 'features/home/presentation/screens/splash_screen.dart';
+import 'provider.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialize media_kit. This is crucial.
-  MediaKit.ensureInitialized();
-  // clearAllSharedPreferences();
+  final audioHandler = await initPlayerAudioHandler();
+
   // Lock orientation to portrait only
-  SystemChrome.setPreferredOrientations([
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  runApp(const ProviderScope(child: MyApp()));
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        audioHandlerProvider.overrideWithValue(audioHandler),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 Future<void> clearAllSharedPreferences() async {
